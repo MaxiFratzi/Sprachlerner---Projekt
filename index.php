@@ -65,11 +65,8 @@ if (isset($_POST['register'])) {
     if ($result->num_rows > 0) {
         $message = "Diese E-Mail wird bereits verwendet!";
     } else {
-        // Passwort hashen
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-        
         // Neuen Benutzer speichern - angepasst an das neue Schema
-        $sql = "INSERT INTO account (username, password, email) VALUES ('$username', '$hashed_password', '$email')";
+        $sql = "INSERT INTO account (username, password, email) VALUES ('$username', '$password', '$email')";
         
         if ($conn->query($sql) === TRUE) {
             // Optional: Erstelle auch einen Eintrag in der benutzer-Tabelle
