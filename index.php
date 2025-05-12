@@ -2,12 +2,6 @@
 // Start Session
 session_start();
 
-// Prüfen, ob Benutzer bereits eingeloggt ist
-if (isset($_SESSION['user_id'])) {
-    // Wenn eingeloggt, zu dashboard.php weiterleiten
-    header("Location: dashboard.php");
-    exit();
-}
 ?>
 
 <!DOCTYPE html>
