@@ -3,7 +3,7 @@
 session_start();
 
 // Prüfen, ob Benutzer bereits eingeloggt ist
-if (isset($_SESSION['accid'])) {
+if (isset($_SESSION['user_id'])) {
     // Wenn eingeloggt, zu dashboard.php weiterleiten
     header("Location: dashboard.php");
     exit();
@@ -13,7 +13,7 @@ if (isset($_SESSION['accid'])) {
 $host = "localhost";
 $username = "root"; // Ändere nach Bedarf
 $password = "root"; // Ändere nach Bedarf
-$dbname = "vokabeln"; // Deine Datenbankname
+$dbname = "vokabeln"; // Geändert zu neuem Datenbanknamen
 
 // Verbindung zur Datenbank herstellen
 $conn = new mysqli($host, $username, $password, $dbname);
@@ -31,7 +31,7 @@ if (isset($_POST['login'])) {
     $email = $conn->real_escape_string($_POST['email']);
     $password = $_POST['password'];
     
-    // Email überprüfen
+    // Email überprüfen - angepasst an das neue Schema
     $sql = "SELECT accid, username, password FROM account WHERE email = '$email'";
     $result = $conn->query($sql);
     
@@ -40,7 +40,7 @@ if (isset($_POST['login'])) {
         // Passwort überprüfen (in der Produktion besser password_verify() verwenden)
         if (password_verify($password, $row['password'])) {
             // Erfolgreicher Login
-            $_SESSION['accid'] = $row['id'];
+            $_SESSION['user_id'] = $row['accid']; // Geändert von 'id' zu 'accid'
             $_SESSION['username'] = $row['username'];
             header("Location: dashboard.php");
             exit();
@@ -65,10 +65,19 @@ if (isset($_POST['register'])) {
     if ($result->num_rows > 0) {
         $message = "Diese E-Mail wird bereits verwendet!";
     } else {
-        // Neuen Benutzer speichern
-        $sql = "INSERT INTO account (username, email, password) VALUES ('$username', '$email', '$password')";
+        // Passwort hashen
+        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
+        
+        // Neuen Benutzer speichern - angepasst an das neue Schema
+        $sql = "INSERT INTO account (username, password, email) VALUES ('$username', '$hashed_password', '$email')";
         
         if ($conn->query($sql) === TRUE) {
+            // Optional: Erstelle auch einen Eintrag in der benutzer-Tabelle
+            $new_user_id = $conn->insert_id;
+            $default_level = "E"; // Standardmäßig einfacher Schwierigkeitsgrad
+            $insert_benutzer = "INSERT INTO benutzer (schwierigkeit, accid) VALUES ('$default_level', $new_user_id)";
+            $conn->query($insert_benutzer);
+            
             $message = "Registrierung erfolgreich! Du kannst dich jetzt anmelden.";
         } else {
             $message = "Fehler bei der Registrierung: " . $conn->error;
