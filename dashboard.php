@@ -2,13 +2,6 @@
 // Start Session
 session_start();
 
-// Prüfen, ob Benutzer eingeloggt ist
-if (!isset($_SESSION['accid'])) {
-    // Wenn nicht eingeloggt, zu index.php weiterleiten
-    header("Location: index.php");
-    exit();
-}
-
 // Database connection
 $host = "localhost";
 $username = "root"; // Ändere nach Bedarf
@@ -24,7 +17,7 @@ if ($conn->connect_error) {
 }
 
 // Benutzerdaten abrufen
-$user_id = $_SESSION['accid'];
+$user_id = $_SESSION['user_id'];    
 $sql = "SELECT username FROM account WHERE accid = $user_id";
 $result = $conn->query($sql);
 $user = $result->fetch_assoc();
