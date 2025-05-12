@@ -30,12 +30,9 @@ if (isset($_POST['register'])) {
     if ($check_result->num_rows > 0) {
         $register_error = "Benutzername oder E-Mail bereits vorhanden";
     } else {
-        // Passwort hashen
-        $hashed_password = password_hash($password, PASSWORD_DEFAULT);
-
-        // Benutzer in Datenbank einfügen
+        // Passwort in Klartext speichern (NICHT empfohlen für Produktivumgebungen!)
         $insert_stmt = $conn->prepare("INSERT INTO account (username, email, password) VALUES (?, ?, ?)");
-        $insert_stmt->bind_param("sss", $username, $email, $hashed_password);
+        $insert_stmt->bind_param("sss", $username, $email, $password);
 
         if ($insert_stmt->execute()) {
             // Automatisches Login nach Registrierung

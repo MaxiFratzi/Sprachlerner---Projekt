@@ -30,8 +30,8 @@ if (isset($_POST['login'])) {
     if ($result->num_rows === 1) {
         $user = $result->fetch_assoc();
         
-        // Passwort überprüfen
-        if (password_verify($password, $user['password'])) {
+        // Passwort direkt vergleichen (NICHT für Produktiveinsatz!)
+        if ($password === $user['password']) {
             // Erfolgreiches Login
             $_SESSION['user_id'] = $user['accid'];
             $_SESSION['username'] = $user['username'];
