@@ -1,5 +1,4 @@
-<?php
-<!-- filepath: c:\xampp\htdocs\3BHWII\Sprachlerner - Projekt\main.php -->
+
 <?php
 // Beispiel: Benutzername aus der Session anzeigen
 session_start();
