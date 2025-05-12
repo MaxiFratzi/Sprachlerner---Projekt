@@ -1,6 +1,12 @@
 <?php
 session_start();
 
+// Prüfen, ob Benutzer nicht eingeloggt ist
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
 // Datenbankverbindung
 $host = "localhost";
 $username = "root";
@@ -15,52 +21,177 @@ if ($conn->connect_error) {
     die("Verbindung fehlgeschlagen: " . $conn->connect_error);
 }
 
-// Standardwert für eingeloggte Zustände
-$is_logged_in = isset($_SESSION['user_id']);
-$current_user = $is_logged_in ? $_SESSION['username'] : null;
+// Aktuellen Benutzer laden
+$current_user_id = $_SESSION['user_id'];
+$current_username = $_SESSION['username'];
 
-// Accountdaten ändern
-if (isset($_POST['update_account']) && $is_logged_in) {
+// Account aktualisieren
+if (isset($_POST['update_account'])) {
     $new_username = $conn->real_escape_string($_POST['username']);
     $new_email = $conn->real_escape_string($_POST['email']);
     
+    // Vorbereitetes Statement für Sicherheit
+    $update_stmt = $conn->prepare("UPDATE account SET username = ?, email = ? WHERE accid = ?");
+    
     // Optional: Passwortänderung
-    $password_update = "";
     if (!empty($_POST['new_password'])) {
         $new_password = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
-        $password_update = ", password = '$new_password'";
+        $update_stmt = $conn->prepare("UPDATE account SET username = ?, email = ?, password = ? WHERE accid = ?");
+        $update_stmt->bind_param("sssi", $new_username, $new_email, $new_password, $current_user_id);
+    } else {
+        $update_stmt->bind_param("ssi", $new_username, $new_email, $current_user_id);
     }
     
-    $update_sql = "UPDATE account SET username = '$new_username', email = '$new_email' $password_update WHERE accid = ".$_SESSION['user_id'];
-    
-    if ($conn->query($update_sql) === TRUE) {
+    if ($update_stmt->execute()) {
         // Aktualisiere Session-Daten
         $_SESSION['username'] = $new_username;
-        $current_user = $new_username;
+        $current_username = $new_username;
         $success_message = "Accountdaten erfolgreich aktualisiert!";
     } else {
         $error_message = "Fehler bei der Aktualisierung: " . $conn->error;
     }
+    $update_stmt->close();
 }
 
 // Account löschen
-if (isset($_POST['delete_account']) && $is_logged_in) {
-    $delete_sql = "DELETE FROM account WHERE accid = ".$_SESSION['user_id'];
+if (isset($_POST['delete_account'])) {
+    $delete_stmt = $conn->prepare("DELETE FROM account WHERE accid = ?");
+    $delete_stmt->bind_param("i", $current_user_id);
     
-    if ($conn->query($delete_sql) === TRUE) {
+    if ($delete_stmt->execute()) {
         // Logout und Weiterleitung
         session_destroy();
-        header("Location: index.php");
+        header("Location: login.php");
         exit();
     } else {
         $error_message = "Fehler beim Löschen des Accounts: " . $conn->error;
     }
+    $delete_stmt->close();
 }
 
 // Logout-Funktion
 if (isset($_GET['logout'])) {
     session_destroy();
-    header("Location: index.php");
+    header("Location: login.php");
+    exit();
+}
+?>
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SprachMeister - Lernsets</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Fontawesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #4255ff;
+            --secondary-color: #ff8a00;
+            --light-blue: #b1f4ff;
+            --pink: #ffb1f4;
+            --orange: #ffcf8a;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .navbar {
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        }
+        
+        .navbar-brand {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary-color);
+        }
+        
+        .learning-sets-section {
+            padding: 2rem 0;
+        }
+        
+        .learning-set-card {
+            border-radius: 20px;
+            overflow: hidden;
+            margin
+            <?php
+session_start();
+
+// Prüfen, ob Benutzer nicht eingeloggt ist
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+// Datenbankverbindung
+$host = "localhost";
+$username = "root";
+$password = "root";
+$dbname = "vokabeln";
+
+// Verbindung zur Datenbank herstellen
+$conn = new mysqli($host, $username, $password, $dbname);
+
+// Verbindung überprüfen
+if ($conn->connect_error) {
+    die("Verbindung fehlgeschlagen: " . $conn->connect_error);
+}
+
+// Aktuellen Benutzer laden
+$current_user_id = $_SESSION['user_id'];
+$current_username = $_SESSION['username'];
+
+// Account aktualisieren
+if (isset($_POST['update_account'])) {
+    $new_username = $conn->real_escape_string($_POST['username']);
+    $new_email = $conn->real_escape_string($_POST['email']);
+    
+    // Vorbereitetes Statement für Sicherheit
+    $update_stmt = $conn->prepare("UPDATE account SET username = ?, email = ? WHERE accid = ?");
+    
+    // Optional: Passwortänderung
+    if (!empty($_POST['new_password'])) {
+        $new_password = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
+        $update_stmt = $conn->prepare("UPDATE account SET username = ?, email = ?, password = ? WHERE accid = ?");
+        $update_stmt->bind_param("sssi", $new_username, $new_email, $new_password, $current_user_id);
+    } else {
+        $update_stmt->bind_param("ssi", $new_username, $new_email, $current_user_id);
+    }
+    
+    if ($update_stmt->execute()) {
+        // Aktualisiere Session-Daten
+        $_SESSION['username'] = $new_username;
+        $current_username = $new_username;
+        $success_message = "Accountdaten erfolgreich aktualisiert!";
+    } else {
+        $error_message = "Fehler bei der Aktualisierung: " . $conn->error;
+    }
+    $update_stmt->close();
+}
+
+// Account löschen
+if (isset($_POST['delete_account'])) {
+    $delete_stmt = $conn->prepare("DELETE FROM account WHERE accid = ?");
+    $delete_stmt->bind_param("i", $current_user_id);
+    
+    if ($delete_stmt->execute()) {
+        // Logout und Weiterleitung
+        session_destroy();
+        header("Location: login.php");
+        exit();
+    } else {
+        $error_message = "Fehler beim Löschen des Accounts: " . $conn->error;
+    }
+    $delete_stmt->close();
+}
+
+// Logout-Funktion
+if (isset($_GET['logout'])) {
+    session_destroy();
+    header("Location: login.php");
     exit();
 }
 ?>
@@ -167,7 +298,7 @@ if (isset($_GET['logout'])) {
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white">
         <div class="container">
-            <a class="navbar-brand" href="index.php">SprachMeister</a>
+            <a class="navbar-brand" href="main.php">SprachMeister</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
@@ -188,33 +319,72 @@ if (isset($_GET['logout'])) {
                     <input class="form-control me-2" type="search" placeholder="Lernsets durchsuchen" style="width: 250px; border-radius: 20px;">
                 </form>
                 <div class="d-flex align-items-center">
-                    <?php if ($is_logged_in): ?>
-                        <div class="dropdown">
-                            <a class="nav-link dropdown-toggle user-dropdown" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                <i class="fas fa-user-circle me-2"></i><?= htmlspecialchars($current_user) ?>
-                            </a>
-                            <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                                <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#accountModal">
-                                    <i class="fas fa-cog me-2"></i>Accounteinstellungen
-                                </a></li>
-                                <li><a class="dropdown-item" href="?logout=true">
-                                    <i class="fas fa-sign-out-alt me-2"></i>Abmelden
-                                </a></li>
-                            </ul>
-                        </div>
-                    <?php else: ?>
-                        <div>
-                            <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#loginModal">Anmelden</button>
-                            <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal">Erstellen</button>
-                        </div>
-                    <?php endif; ?>
+                    <div class="dropdown">
+                        <a class="nav-link dropdown-toggle user-dropdown" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle me-2"></i><?= htmlspecialchars($current_username) ?>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#profileModal">
+                                <i class="fas fa-user me-2"></i>Profil
+                            </a></li>
+                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#settingsModal">
+                                <i class="fas fa-cog me-2"></i>Einstellungen
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="?logout=true">
+                                <i class="fas fa-sign-out-alt me-2"></i>Abmelden
+                            </a></li>
+                        </ul>
+                    </div>
                 </div>
             </div>
         </div>
     </nav>
 
-    <!-- Account Management Modal -->
-    <div class="modal fade" id="accountModal" tabindex="-1" aria-hidden="true">
+    <!-- Profil Modal -->
+    <div class="modal fade" id="profileModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Mein Profil</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <i class="fas fa-user-circle fa-5x mb-3 text-muted"></i>
+                    <h4><?= htmlspecialchars($current_username) ?></h4>
+                    <p class="text-muted">Mitglied seit: 
+                        <?php 
+                        // Hole Registrierungsdatum aus Datenbank
+                        $profile_stmt = $conn->prepare("SELECT DATE(registration_date) as reg_date FROM account WHERE accid = ?");
+                        $profile_stmt->bind_param("i", $current_user_id);
+                        $profile_stmt->execute();
+                        $profile_result = $profile_stmt->get_result();
+                        $profile_data = $profile_result->fetch_assoc();
+                        echo $profile_data ? htmlspecialchars($profile_data['reg_date']) : 'Unbekannt';
+                        $profile_stmt->close();
+                        ?>
+                    </p>
+                    <div class="row mt-4">
+                        <div class="col">
+                            <h5>0</h5>
+                            <small class="text-muted">Lernsets</small>
+                        </div>
+                        <div class="col">
+                            <h5>0</h5>
+                            <small class="text-muted">Fortschritt</small>
+                        </div>
+                        <div class="col">
+                            <h5>0</h5>
+                            <small class="text-muted">Sprachen</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Einstellungen Modal -->
+    <div class="modal fade" id="settingsModal" tabindex="-1" aria-hidden="true">
         <div class="modal-dialog">
             <div class="modal-content">
                 <div class="modal-header">
@@ -231,30 +401,32 @@ if (isset($_GET['logout'])) {
                     }
                     
                     // Aktuellen Benutzer laden
-                    if ($is_logged_in) {
-                        $user_query = "SELECT username, email FROM account WHERE accid = ".$_SESSION['user_id'];
-                        $user_result = $conn->query($user_query);
-                        $user_data = $user_result->fetch_assoc();
-                    }
+                    $user_stmt = $conn->prepare("SELECT username, email FROM account WHERE accid = ?");
+                    $user_stmt->bind_param("i", $current_user_id);
+                    $user_stmt->execute();
+                    $user_result = $user_stmt->get_result();
+                    $user_data = $user_result->fetch_assoc();
+                    $user_stmt->close();
                     ?>
                     <form method="post" action="">
                         <div class="mb-3">
                             <label for="username" class="form-label">Benutzername</label>
                             <input type="text" class="form-control" id="username" name="username" 
-                                   value="<?= $is_logged_in ? htmlspecialchars($user_data['username']) : '' ?>" required>
+                                   value="<?= htmlspecialchars($user_data['username']) ?>" required>
                         </div>
                         <div class="mb-3">
                             <label for="email" class="form-label">E-Mail</label>
                             <input type="email" class="form-control" id="email" name="email" 
-                                   value="<?= $is_logged_in ? htmlspecialchars($user_data['email']) : '' ?>" required>
+                                   value="<?= htmlspecialchars($user_data['email']) ?>" required>
                         </div>
                         <div class="mb-3">
                             <label for="new_password" class="form-label">Neues Passwort (optional)</label>
                             <input type="password" class="form-control" id="new_password" name="new_password" minlength="6">
+                            <small class="form-text text-muted">Mindestens 6 Zeichen</small>
                         </div>
                         <div class="d-grid gap-2">
                             <button type="submit" name="update_account" class="btn btn-primary">Änderungen speichern</button>
-                            <button type="submit" name="delete_account" class="btn btn-danger" onclick="return confirm('Bist du sicher, dass du deinen Account löschen möchtest?')">Account löschen</button>
+                            <button type="submit" name="delete_account" class="btn btn-danger" onclick="return confirm('Bist du sicher, dass du deinen Account löschen möchtest? Diese Aktion kann nicht rückgängig gemacht werden.')">Account löschen</button>
                         </div>
                     </form>
                 </div>
@@ -262,7 +434,6 @@ if (isset($_GET['logout'])) {
         </div>
     </div>
 
-    <!-- Rest of the page remains the same as in the previous version -->
     <!-- Learning Sets Section -->
     <section class="learning-sets-section">
         <div class="container">
@@ -284,7 +455,7 @@ if (isset($_GET['logout'])) {
                             <div class="d-flex justify-content-between align-items-center mt-3">
                                 <div>
                                     <small class="text-muted">180 Vokabeln</small>
-                                </div>
+                                    </div>
                                 <a href="#" class="btn btn-outline-primary btn-sm">Vorschau</a>
                             </div>
                         </div>
@@ -333,7 +504,7 @@ if (isset($_GET['logout'])) {
                             </div>
                         </div>
                     </div>
-                    </div>
+                </div>
 
                 <!-- Weitere Lernsets -->
                 <div class="col-12 text-center mt-4">
@@ -372,70 +543,6 @@ if (isset($_GET['logout'])) {
             </div>
         </div>
     </footer>
-
-    <!-- Login Modal (from index.php) -->
-    <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Anmelden</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form method="post" action="login.php">
-                        <div class="mb-3">
-                            <label for="loginEmail" class="form-label">E-Mail</label>
-                            <input type="email" class="form-control" id="loginEmail" name="email" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="loginPassword" class="form-label">Passwort</label>
-                            <input type="password" class="form-control" id="loginPassword" name="password" required>
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" name="login" class="btn btn-primary">Anmelden</button>
-                        </div>
-                    </form>
-                    <div class="text-center mt-3">
-                        <p>Noch kein Konto? <a href="#" data-bs-toggle="modal" data-bs-target="#registerModal" data-bs-dismiss="modal">Jetzt registrieren</a></p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Register Modal (from index.php) -->
-    <div class="modal fade" id="registerModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Neues Konto erstellen</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <form method="post" action="register.php">
-                        <div class="mb-3">
-                            <label for="registerUsername" class="form-label">Benutzername</label>
-                            <input type="text" class="form-control" id="registerUsername" name="username" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="registerEmail" class="form-label">E-Mail</label>
-                            <input type="email" class="form-control" id="registerEmail" name="email" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="registerPassword" class="form-label">Passwort</label>
-                            <input type="password" class="form-control" id="registerPassword" name="password" required minlength="6">
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" name="register" class="btn btn-primary">Registrieren</button>
-                        </div>
-                    </form>
-                    <div class="text-center mt-3">
-                        <p>Bereits ein Konto? <a href="#" data-bs-toggle="modal" data-bs-target="#loginModal" data-bs-dismiss="modal">Jetzt anmelden</a></p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Bootstrap and JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
