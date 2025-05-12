@@ -212,16 +212,6 @@ $conn->close();
                             <li><a class="dropdown-item" href="#">Lernspiele</a></li>
                         </ul>
                     </li>
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="themesDropdown" role="button" data-bs-toggle="dropdown">
-                            Themen
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#">Anfänger</a></li>
-                            <li><a class="dropdown-item" href="#">Fortgeschrittene</a></li>
-                            <li><a class="dropdown-item" href="#">Experten</a></li>
-                        </ul>
-                    </li>
                 </ul>
                 <form class="d-flex mx-auto mb-2 mb-lg-0">
                     <input class="form-control me-2" type="search" placeholder="Nach Übungstests suchen" style="width: 250px; border-radius: 20px;">
@@ -242,9 +232,6 @@ $conn->close();
             <button class="btn btn-primary btn-lg mb-4" data-bs-toggle="modal" data-bs-target="#registerModal">
                 Kostenlos registrieren
             </button>
-            <div class="mt-2">
-                <a href="#" class="text-primary">Infos für Lehrer</a>
-            </div>
         </div>
     </section>
 
@@ -255,7 +242,6 @@ $conn->close();
             <div class="col-md-6 col-lg-3">
                 <div class="feature-card learn-card">
                     <h3>Lernen</h3>
-                    <img src="images/learn.png" alt="Lernen" class="feature-image mt-3">
                     <div class="mt-3">
                         <div class="input-group mb-3">
                             <input type="text" class="form-control" placeholder="Antwort eingeben">
