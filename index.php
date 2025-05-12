@@ -8,81 +8,6 @@ if (isset($_SESSION['user_id'])) {
     header("Location: dashboard.php");
     exit();
 }
-
-// Database connection
-$host = "localhost";
-$username = "root"; // Ändere nach Bedarf
-$password = "root"; // Ändere nach Bedarf
-$dbname = "vokabeln"; // Geändert zu neuem Datenbanknamen
-
-// Verbindung zur Datenbank herstellen
-$conn = new mysqli($host, $username, $password, $dbname);
-
-// Verbindung überprüfen
-if ($conn->connect_error) {
-    die("Verbindung fehlgeschlagen: " . $conn->connect_error);
-}
-
-// Nachrichten-Variable initialisieren
-$message = "";
-
-// Login-Formular Verarbeitung
-if (isset($_POST['login'])) {
-    $email = $conn->real_escape_string($_POST['email']);
-    $password = $_POST['password'];
-    
-    // Email überprüfen - angepasst an das neue Schema
-    $sql = "SELECT accid, username, password FROM account WHERE email = '$email'";
-    $result = $conn->query($sql);
-    
-    if ($result->num_rows == 1) {
-        $row = $result->fetch_assoc();
-        // Passwort überprüfen (in der Produktion besser password_verify() verwenden)
-        if (password_verify($password, $row['password'])) {
-            // Erfolgreicher Login
-            $_SESSION['user_id'] = $row['accid']; // Geändert von 'id' zu 'accid'
-            $_SESSION['username'] = $row['username'];
-            header("Location: dashboard.php");
-            exit();
-        } else {
-            $message = "Falsches Passwort!";
-        }
-    } else {
-        $message = "Benutzer nicht gefunden!";
-    }
-}
-
-// Registrierungs-Formular Verarbeitung
-if (isset($_POST['register'])) {
-    $username = $conn->real_escape_string($_POST['username']);
-    $email = $conn->real_escape_string($_POST['email']);
-    $password = $_POST['password'];
-    
-    // Prüfen, ob Email bereits existiert
-    $check_sql = "SELECT accid FROM account WHERE email = '$email'";
-    $result = $conn->query($check_sql);
-    
-    if ($result->num_rows > 0) {
-        $message = "Diese E-Mail wird bereits verwendet!";
-    } else {
-        // Neuen Benutzer speichern - angepasst an das neue Schema
-        $sql = "INSERT INTO account (username, password, email) VALUES ('$username', '$password', '$email')";
-        
-        if ($conn->query($sql) === TRUE) {
-            // Optional: Erstelle auch einen Eintrag in der benutzer-Tabelle
-            $new_user_id = $conn->insert_id;
-            $default_level = "E"; // Standardmäßig einfacher Schwierigkeitsgrad
-            $insert_benutzer = "INSERT INTO benutzer (schwierigkeit, accid) VALUES ('$default_level', $new_user_id)";
-            $conn->query($insert_benutzer);
-            
-            $message = "Registrierung erfolgreich! Du kannst dich jetzt anmelden.";
-        } else {
-            $message = "Fehler bei der Registrierung: " . $conn->error;
-        }
-    }
-}
-
-$conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -90,7 +15,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SprachMeister - Lerne Sprachen interaktiv</title>
+    <title>SprachenMeister - Lerne Sprachen interaktiv</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Fontawesome Icons -->
@@ -196,29 +121,17 @@ $conn->close();
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-light bg-white">
         <div class="container">
-            <a class="navbar-brand" href="index.php">SprachMeister</a>
+            <a class="navbar-brand" href="index.php">SprachenMeister</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button" data-bs-toggle="dropdown">
-                            Lerntools
-                        </a>
-                        <ul class="dropdown-menu">
-                            <li><a class="dropdown-item" href="#">Karteikarten</a></li>
-                            <li><a class="dropdown-item" href="#">Übungstests</a></li>
-                            <li><a class="dropdown-item" href="#">Lernspiele</a></li>
-                        </ul>
-                    </li>
-                </ul>
                 <form class="d-flex mx-auto mb-2 mb-lg-0">
                     <input class="form-control me-2" type="search" placeholder="Nach Übungstests suchen" style="width: 250px; border-radius: 20px;">
                 </form>
                 <div class="d-flex">
-                    <button class="btn btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#loginModal">Anmelden</button>
-                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#registerModal">Erstellen</button>
+                    <a href="login.php" class="btn btn-outline-primary me-2">Anmelden</a>
+                    <a href="register.php" class="btn btn-primary">Erstellen</a>
                 </div>
             </div>
         </div>
@@ -229,9 +142,9 @@ $conn->close();
         <div class="container">
             <h1>Wie möchtest du lernen?</h1>
             <p class="hero-text">Mit den interaktiven Karteikarten, Übungstests und Lernaktivitäten von SprachMeister lernst du alles, was du willst.</p>
-            <button class="btn btn-primary btn-lg mb-4" data-bs-toggle="modal" data-bs-target="#registerModal">
+            <a href="register.php" class="btn btn-primary btn-lg mb-4">
                 Kostenlos registrieren
-            </button>
+            </a>
         </div>
     </section>
 
@@ -259,7 +172,6 @@ $conn->close();
                         <div class="d-flex mt-4">
                             <div>
                                 <div class="mb-3">Gliederung</div>
-                                <div>Wichtige Themen</div>
                             </div>
                             <div class="ms-3">
                                 <div class="mb-3">Kurzübersicht</div>
@@ -318,76 +230,6 @@ $conn->close();
             </div>
         </div>
     </section>
-
-    <!-- Login Modal -->
-    <div class="modal fade" id="loginModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Anmelden</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <?php if (!empty($message) && isset($_POST['login'])): ?>
-                        <div class="alert alert-danger"><?php echo $message; ?></div>
-                    <?php endif; ?>
-                    <form method="post" action="">
-                        <div class="mb-3">
-                            <label for="loginEmail" class="form-label">E-Mail</label>
-                            <input type="email" class="form-control" id="loginEmail" name="email" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="loginPassword" class="form-label">Passwort</label>
-                            <input type="password" class="form-control" id="loginPassword" name="password" required>
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" name="login" class="btn btn-primary">Anmelden</button>
-                        </div>
-                    </form>
-                    <div class="text-center mt-3">
-                        <p>Noch kein Konto? <a href="#" data-bs-toggle="modal" data-bs-target="#registerModal" data-bs-dismiss="modal">Jetzt registrieren</a></p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Register Modal -->
-    <div class="modal fade" id="registerModal" tabindex="-1" aria-hidden="true">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Neues Konto erstellen</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <?php if (!empty($message) && isset($_POST['register'])): ?>
-                        <div class="alert alert-<?php echo strpos($message, "erfolgreich") !== false ? "success" : "danger"; ?>"><?php echo $message; ?></div>
-                    <?php endif; ?>
-                    <form method="post" action="">
-                        <div class="mb-3">
-                            <label for="registerUsername" class="form-label">Benutzername</label>
-                            <input type="text" class="form-control" id="registerUsername" name="username" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="registerEmail" class="form-label">E-Mail</label>
-                            <input type="email" class="form-control" id="registerEmail" name="email" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="registerPassword" class="form-label">Passwort</label>
-                            <input type="password" class="form-control" id="registerPassword" name="password" required minlength="6">
-                        </div>
-                        <div class="d-grid">
-                            <button type="submit" name="register" class="btn btn-primary">Registrieren</button>
-                        </div>
-                    </form>
-                    <div class="text-center mt-3">
-                        <p>Bereits ein Konto? <a href="#" data-bs-toggle="modal" data-bs-target="#loginModal" data-bs-dismiss="modal">Jetzt anmelden</a></p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Footer -->
     <footer class="bg-light py-4 mt-5">
