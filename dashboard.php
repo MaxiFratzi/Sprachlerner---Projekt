@@ -2,13 +2,6 @@
 // Start Session
 session_start();
 
-// Prüfen, ob Benutzer eingeloggt ist
-if (!isset($_SESSION['accid'])) {
-    // Wenn nicht eingeloggt, zu index.php weiterleiten
-    header("Location: index.php");
-    exit();
-}
-
 // Database connection
 $host = "localhost";
 $username = "root"; // Ändere nach Bedarf
