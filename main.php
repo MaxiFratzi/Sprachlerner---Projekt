@@ -256,16 +256,6 @@ $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
                     <i class="fas fa-book"></i> Bibliothek
                 </a>
             </li>
-            <li>
-                <a href="#">
-                    <i class="fas fa-plus-circle"></i> Neues Set erstellen
-                </a>
-            </li>
-            <li>
-                <a href="#">
-                    <i class="fas fa-chart-line"></i> Lernfortschritt
-                </a>
-            </li>
         </ul>
     </div>
 
@@ -278,15 +268,15 @@ $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
         
         <div class="stats-container">
             <div class="stat-card">
-                <h3>32</h3>
+                <h3>0</h3>
                 <p>Gelernte Vokabeln heute</p>
             </div>
             <div class="stat-card">
-                <h3>7</h3>
+                <h3>0</h3>
                 <p>Tage in Folge gelernt</p>
             </div>
             <div class="stat-card">
-                <h3>85%</h3>
+                <h3>0%</h3>
                 <p>Erfolgsquote</p>
             </div>
         </div>
@@ -297,20 +287,17 @@ $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
                 <div class="set-card">
                     <h4>Easy</h4>
                     <p>50 Begriffe</p>
-                    <p>Zuletzt gelernt: Heute</p>
-                    <button class="btn btn-primary btn-sm">Weiter lernen</button>
+                    <a href="easyVoc.php" class="btn btn-primary btn-sm">Weiter lernen</a>
                 </div>
                 <div class="set-card">
                     <h4>Medium</h4>
                     <p>50 Begriffe</p>
-                    <p>Zuletzt gelernt: Gestern</p>
-                    <button class="btn btn-primary btn-sm">Weiter lernen</button>
+                    <a href="mediumVoc.php" class="btn btn-primary btn-sm">Weiter lernen</a>
                 </div>
                 <div class="set-card">
                     <h4>Hard</h4>
                     <p>50 Begriffe</p>
-                    <p>Zuletzt gelernt: Vor 3 Tagen</p>
-                    <button class="btn btn-primary btn-sm">Weiter lernen</button>
+                    <a href="hardVoc.php" class="btn btn-primary btn-sm">Weiter lernen</a>
                 </div>
             </div>
         </div>

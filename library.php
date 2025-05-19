@@ -157,7 +157,7 @@ session_start();
                 <div class="library-set-details">50 Begriffe</div>
             </div>
             <div>
-                <button class="btn btn-primary">Lernen</button>
+                <a href="easyVoc.php" class="btn btn-primary">Lernen</a>
             </div>
         </div>
 
@@ -169,7 +169,7 @@ session_start();
                 <div class="library-set-details">50 Begriffe</div>
             </div>
             <div>
-                <button class="btn btn-primary">Lernen</button>
+                <a href="mediumVoc.php" class="btn btn-primary">Lernen</a>
             </div>
         </div>
 
@@ -181,7 +181,7 @@ session_start();
                 <div class="library-set-details">50 Begriffe</div>
             </div>
             <div>
-                <button class="btn btn-primary">Lernen</button>
+                <a href="hardVoc.php" class="btn btn-primary">Lernen</a>
             </div>
         </div>
     </div>
