@@ -139,9 +139,6 @@ session_start();
                 <li class="nav-item">
                     <a class="nav-link active" href="#lernsets">Lernsets</a>
                 </li>
-                <li class="nav-item">
-                    <a class="nav-link" href="#uebungstests">Übungstests</a>
-                </li>
             </ul>
         </div>
     </div>
