@@ -116,125 +116,6 @@ if (isset($_GET['logout'])) {
         .learning-set-card {
             border-radius: 20px;
             overflow: hidden;
-            margin
-            <?php
-session_start();
-
-// Prüfen, ob Benutzer nicht eingeloggt ist
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit();
-}
-
-// Datenbankverbindung
-$host = "localhost";
-$username = "root";
-$password = "root";
-$dbname = "vokabeln";
-
-// Verbindung zur Datenbank herstellen
-$conn = new mysqli($host, $username, $password, $dbname);
-
-// Verbindung überprüfen
-if ($conn->connect_error) {
-    die("Verbindung fehlgeschlagen: " . $conn->connect_error);
-}
-
-// Aktuellen Benutzer laden
-$current_user_id = $_SESSION['user_id'];
-$current_username = $_SESSION['username'];
-
-// Account aktualisieren
-if (isset($_POST['update_account'])) {
-    $new_username = $conn->real_escape_string($_POST['username']);
-    $new_email = $conn->real_escape_string($_POST['email']);
-    
-    // Vorbereitetes Statement für Sicherheit
-    $update_stmt = $conn->prepare("UPDATE account SET username = ?, email = ? WHERE accid = ?");
-    
-    // Optional: Passwortänderung
-    if (!empty($_POST['new_password'])) {
-        $new_password = password_hash($_POST['new_password'], PASSWORD_DEFAULT);
-        $update_stmt = $conn->prepare("UPDATE account SET username = ?, email = ?, password = ? WHERE accid = ?");
-        $update_stmt->bind_param("sssi", $new_username, $new_email, $new_password, $current_user_id);
-    } else {
-        $update_stmt->bind_param("ssi", $new_username, $new_email, $current_user_id);
-    }
-    
-    if ($update_stmt->execute()) {
-        // Aktualisiere Session-Daten
-        $_SESSION['username'] = $new_username;
-        $current_username = $new_username;
-        $success_message = "Accountdaten erfolgreich aktualisiert!";
-    } else {
-        $error_message = "Fehler bei der Aktualisierung: " . $conn->error;
-    }
-    $update_stmt->close();
-}
-
-// Account löschen
-if (isset($_POST['delete_account'])) {
-    $delete_stmt = $conn->prepare("DELETE FROM account WHERE accid = ?");
-    $delete_stmt->bind_param("i", $current_user_id);
-    
-    if ($delete_stmt->execute()) {
-        // Logout und Weiterleitung
-        session_destroy();
-        header("Location: login.php");
-        exit();
-    } else {
-        $error_message = "Fehler beim Löschen des Accounts: " . $conn->error;
-    }
-    $delete_stmt->close();
-}
-
-// Logout-Funktion
-if (isset($_GET['logout'])) {
-    session_destroy();
-    header("Location: login.php");
-    exit();
-}
-?>
-<!DOCTYPE html>
-<html lang="de">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SprachMeister - Lernsets</title>
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Fontawesome Icons -->
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        :root {
-            --primary-color: #4255ff;
-            --secondary-color: #ff8a00;
-            --light-blue: #b1f4ff;
-            --pink: #ffb1f4;
-            --orange: #ffcf8a;
-        }
-        
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-        
-        .navbar {
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .navbar-brand {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: var(--primary-color);
-        }
-        
-        .learning-sets-section {
-            padding: 2rem 0;
-        }
-        
-        .learning-set-card {
-            border-radius: 20px;
-            overflow: hidden;
             margin-bottom: 2rem;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
             transition: transform 0.3s;
@@ -324,16 +205,17 @@ if (isset($_GET['logout'])) {
                             <i class="fas fa-user-circle me-2"></i><?= htmlspecialchars($current_username) ?>
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
-                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#profileModal">
-                                <i class="fas fa-user me-2"></i>Profil
-                            </a></li>
-                            <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#settingsModal">
-                                <i class="fas fa-cog me-2"></i>Einstellungen
-                            </a></li>
+                            <li>
+                                <a class="dropdown-item" href="account.php">
+                                    <i class="fas fa-user me-2"></i>Account
+                                </a>
+                            </li>
                             <li><hr class="dropdown-divider"></li>
-                            <li><a class="dropdown-item" href="?logout=true">
-                                <i class="fas fa-sign-out-alt me-2"></i>Abmelden
-                            </a></li>
+                            <li>
+                                <a class="dropdown-item" href="logout.php">
+                                    <i class="fas fa-sign-out-alt me-2"></i>Logout
+                                </a>
+                            </li>
                         </ul>
                     </div>
                 </div>
