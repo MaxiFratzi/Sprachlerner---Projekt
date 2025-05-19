@@ -186,25 +186,28 @@ if (isset($_GET['logout'])) {
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button" data-bs-toggle="dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="toolsDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             Lerntools
                         </a>
-                        <ul class="dropdown-menu">
+                        <ul class="dropdown-menu" aria-labelledby="toolsDropdown">
                             <li><a class="dropdown-item" href="#">Karteikarten</a></li>
                             <li><a class="dropdown-item" href="#">Übungstests</a></li>
                             <li><a class="dropdown-item" href="#">Lernspiele</a></li>
                         </ul>
                     </li>
                 </ul>
-                <form class="d-flex mx-auto mb-2 mb-lg-0">
+                <form class="d-flex mb-2 mb-lg-0" style="margin-left:auto; margin-right:auto;">
                     <input class="form-control me-2" type="search" placeholder="Lernsets durchsuchen" style="width: 250px; border-radius: 20px;">
                 </form>
-                <div class="d-flex align-items-center">
-                    <div class="dropdown">
-                        <button class="btn btn-link nav-link dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
-                            <i class="fas fa-user-circle me-2"></i><?= htmlspecialchars($current_username) ?>
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle d-flex align-items-center"
+                           href="#" id="accountDropdown"
+                           role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user-circle me-2"></i>
+                            <?= htmlspecialchars($current_username) ?>
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="accountDropdown">
                             <li>
                                 <a class="dropdown-item" href="account.php">
                                     <i class="fas fa-user me-2"></i>Account
@@ -212,13 +215,13 @@ if (isset($_GET['logout'])) {
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item" href="?logout=1">
+                                <a class="dropdown-item" href="#">
                                     <i class="fas fa-sign-out-alt me-2"></i>Logout
                                 </a>
                             </li>
                         </ul>
-                    </div>
-                </div>
+                    </li>
+                </ul>
             </div>
         </div>
     </nav>
