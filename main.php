@@ -286,17 +286,17 @@ $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
             <div class="set-grid">
                 <div class="set-card">
                     <h4>Easy</h4>
-                    <p>50 Begriffe</p>
+                    <p>48 Begriffe</p>
                     <a href="easyVoc.php" class="btn btn-primary btn-sm">Weiter lernen</a>
                 </div>
                 <div class="set-card">
                     <h4>Medium</h4>
-                    <p>50 Begriffe</p>
+                    <p>48 Begriffe</p>
                     <a href="mediumVoc.php" class="btn btn-primary btn-sm">Weiter lernen</a>
                 </div>
                 <div class="set-card">
                     <h4>Hard</h4>
-                    <p>50 Begriffe</p>
+                    <p>48 Begriffe</p>
                     <a href="hardVoc.php" class="btn btn-primary btn-sm">Weiter lernen</a>
                 </div>
             </div>
