@@ -245,22 +245,47 @@ if (count($vocabularies) == 0) {
                 <a href="easyVoc.php" class="btn btn-primary mt-3">Zurück zur Übersicht</a>
             </div>
         <?php else: ?>
-            <div class="flashcard-container">
-                <div id="flashcard" class="flashcard">
-                    <div class="flashcard-front">
-                        <span id="frontText"></span>
-                        <div class="card-hint">Klicke zum Umdrehen</div>
-                    </div>
-                    <div class="flashcard-back">
-                        <span id="backText"></span>
-                        <div class="card-hint">Klicke zum Umdrehen</div>
-                    </div>
+            <!-- Completion Screen (initially hidden) -->
+            <div id="completionScreen" class="text-center py-5" style="display: none;">
+                <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
+                <h2>Lernset abgeschlossen!</h2>
+                <p class="text-muted mb-4">Du hast alle Vokabeln in diesem Set durchgearbeitet.</p>
+                <div class="d-flex justify-content-center gap-3">
+                    <button id="restartButton" class="btn btn-success">
+                        <i class="fas fa-redo me-2"></i>Lernset erneut lernen
+                    </button>
+                    <a href="easyVoc.php" class="btn btn-primary">
+                        <i class="fas fa-th-large me-2"></i>Zurück zur Übersicht
+                    </a>
                 </div>
             </div>
-            <div class="flashcard-controls">
-                <button id="prevButton" class="btn btn-outline-primary"><i class="fas fa-chevron-left me-2"></i>Zurück</button>
-                <div class="progress-text">Karte <span id="currentCard">1</span> von <span id="totalCards"><?php echo count($vocabularies); ?></span></div>
-                <button id="nextButton" class="btn btn-primary">Weiter<i class="fas fa-chevron-right ms-2"></i></button>
+
+            <!-- Flashcard UI (initially visible) -->
+            <div id="flashcardUI">
+                <div class="flashcard-container">
+                    <div id="flashcard" class="flashcard">
+                        <div class="flashcard-front">
+                            <span id="frontText"></span>
+                            <div class="card-hint">Klicke zum Umdrehen</div>
+                        </div>
+                        <div class="flashcard-back">
+                            <span id="backText"></span>
+                            <div class="card-hint">Klicke zum Umdrehen</div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flashcard-controls">
+                    <div>
+                        <button id="prevButton" class="btn btn-outline-primary">
+                            <i class="fas fa-chevron-left me-2"></i>Zurück
+                        </button>
+                        <a href="easyVoc.php" class="btn btn-outline-secondary ms-2">
+                            <i class="fas fa-th-large me-2"></i>Zurück zur Übersicht
+                        </a>
+                    </div>
+                    <div class="progress-text">Karte <span id="currentCard">1</span> von <span id="totalCards"><?php echo count($vocabularies); ?></span></div>
+                    <button id="nextButton" class="btn btn-primary">Weiter<i class="fas fa-chevron-right ms-2"></i></button>
+                </div>
             </div>
         <?php endif; ?>
     </div>
@@ -274,6 +299,7 @@ if (count($vocabularies) == 0) {
         const vocabularies = <?php echo json_encode($vocabularies); ?>;
         let currentIndex = 0;
         let isFlipped = false;
+        let isCompleted = false;
         
         const flashcard = document.getElementById('flashcard');
         const frontText = document.getElementById('frontText');
@@ -281,6 +307,9 @@ if (count($vocabularies) == 0) {
         const currentCardSpan = document.getElementById('currentCard');
         const nextButton = document.getElementById('nextButton');
         const prevButton = document.getElementById('prevButton');
+        const flashcardUI = document.getElementById('flashcardUI');
+        const completionScreen = document.getElementById('completionScreen');
+        const restartButton = document.getElementById('restartButton');
         
         // Karte initialisieren
         updateCard();
@@ -297,6 +326,9 @@ if (count($vocabularies) == 0) {
                 currentIndex++;
                 resetCard();
                 updateCard();
+            } else if (!isCompleted) {
+                // Wenn die letzte Karte erreicht ist und der Button nochmal gedrückt wird
+                showCompletionScreen();
             }
         });
         
@@ -309,6 +341,15 @@ if (count($vocabularies) == 0) {
             }
         });
         
+        // Erneut lernen Button
+        restartButton.addEventListener('click', () => {
+            currentIndex = 0;
+            isCompleted = false;
+            resetCard();
+            updateCard();
+            showFlashcardUI();
+        });
+        
         // Karte aktualisieren
         function updateCard() {
             frontText.textContent = vocabularies[currentIndex].englisch;
@@ -317,7 +358,6 @@ if (count($vocabularies) == 0) {
             
             // Prüfen ob es die erste oder letzte Karte ist
             prevButton.disabled = currentIndex === 0;
-            nextButton.disabled = currentIndex === vocabularies.length - 1;
         }
         
         // Karte zurücksetzen (nicht umgedreht)
@@ -326,6 +366,19 @@ if (count($vocabularies) == 0) {
                 flashcard.classList.remove('flipped');
                 isFlipped = false;
             }
+        }
+        
+        // Abschlussbildschirm anzeigen
+        function showCompletionScreen() {
+            isCompleted = true;
+            flashcardUI.style.display = 'none';
+            completionScreen.style.display = 'block';
+        }
+        
+        // Karteikarten-UI anzeigen
+        function showFlashcardUI() {
+            flashcardUI.style.display = 'block';
+            completionScreen.style.display = 'none';
         }
     </script>
     <?php endif; ?>
