@@ -201,9 +201,9 @@ if (isset($_GET['logout'])) {
                 </form>
                 <div class="d-flex align-items-center">
                     <div class="dropdown">
-                        <a class="nav-link dropdown-toggle user-dropdown" id="userDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <button class="btn btn-link nav-link dropdown-toggle" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-user-circle me-2"></i><?= htmlspecialchars($current_username) ?>
-                        </a>
+                        </button>
                         <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
                             <li>
                                 <a class="dropdown-item" href="account.php">
@@ -212,7 +212,7 @@ if (isset($_GET['logout'])) {
                             </li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
-                                <a class="dropdown-item" href="logout.php">
+                                <a class="dropdown-item" href="?logout=1">
                                     <i class="fas fa-sign-out-alt me-2"></i>Logout
                                 </a>
                             </li>
