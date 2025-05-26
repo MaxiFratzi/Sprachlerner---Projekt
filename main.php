@@ -41,6 +41,35 @@ if ($result->num_rows > 0) {
 }
 
 $stmt->close();
+
+// Calculate learning streak (days in a row with at least 5 vocabularies learned)
+$streak = 0;
+$minimum_vocab = 5; // Minimum vocabulary required to maintain streak
+$checkDate = $today;
+$streakRunning = true;
+
+$streakStmt = $conn->prepare("SELECT count FROM vocabulary_tracking WHERE user_id = ? AND learn_date = ? AND count >= ?");
+$streakStmt->bind_param("isi", $user_id, $checkDate, $minimum_vocab);
+
+// Loop backwards through days until we find a day with fewer than 5 words learned
+while ($streakRunning) {
+    $streakStmt->execute();
+    $streakResult = $streakStmt->get_result();
+    
+    if ($streakResult->num_rows > 0) {
+        // Day found with at least 5 words learned - increment streak
+        $streak++;
+        // Move to the previous day
+        $checkDate = date('Y-m-d', strtotime($checkDate . ' -1 day'));
+    } else {
+        // Day found with less than 5 words learned - streak broken
+        $streakRunning = false;
+    }
+}
+
+$streakStmt->close();
+
+// Continue with database close and the rest of your code...
 $conn->close();
 ?>
 
@@ -304,7 +333,7 @@ $conn->close();
                 <p>Gelernte Vokabeln heute</p>
             </div>
             <div class="stat-card">
-                <h3>0</h3>
+                <h3><?php echo $streak; ?></h3>
                 <p>Tage in Folge gelernt</p>
             </div>
             <div class="stat-card">
