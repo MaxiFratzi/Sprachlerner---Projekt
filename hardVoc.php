@@ -185,6 +185,15 @@ $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
                 <p>Lerne durch aktives Schreiben der Vokabeln für ein besseres Gedächtnis.</p>
                 <button class="btn btn-primary">Schreibübung starten</button>
             </div>
+
+            <div class="option-card" onclick="window.location='hardVocTest.php'">
+                <div class="option-icon">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+                <h3>Test dein Wissen</h3>
+                <p>Überprüfe deine Vokabelkenntnisse mit einem Test und sieh deine Fortschritte.</p>
+                <button class="btn btn-primary">Test starten</button>
+            </div>
         </div>
     </div>
 
