@@ -97,6 +97,32 @@ if ($result->num_rows > 0) {
 }
 
 $stmt->close();
+
+// Save test results to database
+$difficulty = "easy"; // Change to "medium" or "hard" in the respective files
+$test_date = date('Y-m-d H:i:s');
+
+// First check if the table exists, create it if needed
+$check_table = $conn->query("SHOW TABLES LIKE 'test_results'");
+if ($check_table->num_rows == 0) {
+    $create_table = "CREATE TABLE test_results (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NOT NULL,
+        test_date DATETIME NOT NULL,
+        difficulty VARCHAR(10) NOT NULL,
+        correct_count INT NOT NULL,
+        total_count INT NOT NULL,
+        success_rate DECIMAL(5,2) NOT NULL
+    )";
+    $conn->query($create_table);
+}
+
+// Save the test result
+$save_stmt = $conn->prepare("INSERT INTO test_results (user_id, test_date, difficulty, correct_count, total_count, success_rate) VALUES (?, ?, ?, ?, ?, ?)");
+$save_stmt->bind_param("issiid", $user_id, $test_date, $difficulty, $correctCount, $totalCount, $successRate);
+$save_stmt->execute();
+$save_stmt->close();
+
 $conn->close();
 
 // Testvokabeln aus der Session entfernen

@@ -69,6 +69,33 @@ while ($streakRunning) {
 
 $streakStmt->close();
 
+// Calculate average success rate from all tests
+$success_stmt = $conn->prepare("SELECT AVG(success_rate) as avg_rate FROM test_results WHERE user_id = ?");
+$success_stmt->bind_param("i", $user_id);
+$success_stmt->execute();
+$success_result = $success_stmt->get_result();
+
+$success_rate = 0;
+if ($success_result->num_rows > 0) {
+    $success_row = $success_result->fetch_assoc();
+    if ($success_row['avg_rate'] !== null) {
+        $success_rate = round($success_row['avg_rate']);
+    }
+}
+$success_stmt->close();
+
+// Handle case with no tests taken
+$tests_taken = false;
+$count_stmt = $conn->prepare("SELECT COUNT(*) as test_count FROM test_results WHERE user_id = ?");
+$count_stmt->bind_param("i", $user_id);
+$count_stmt->execute();
+$count_result = $count_stmt->get_result();
+if ($count_result->num_rows > 0) {
+    $count_row = $count_result->fetch_assoc();
+    $tests_taken = ($count_row['test_count'] > 0);
+}
+$count_stmt->close();
+
 // Continue with database close and the rest of your code...
 $conn->close();
 ?>
@@ -337,7 +364,7 @@ $conn->close();
                 <p>Tage in Folge gelernt</p>
             </div>
             <div class="stat-card">
-                <h3>0%</h3>
+                <h3><?php echo $tests_taken ? $success_rate : '-'; ?>%</h3>
                 <p>Erfolgsquote</p>
             </div>
         </div>
