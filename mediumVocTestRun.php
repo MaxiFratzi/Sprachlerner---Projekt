@@ -232,6 +232,44 @@ $_SESSION['test_vocabulary'] = $testVocabulary;
             const totalQuestions = <?php echo count($testVocabulary); ?>;
             let currentIndex = 0;
             
+            // Event-Listener für die Enter-Taste
+            document.addEventListener('keydown', function(event) {
+                // Enter-Taste (13) prüfen
+                if (event.key === 'Enter' || event.keyCode === 13) {
+                    // Verhindern des Standard-Formular-Submits
+                    event.preventDefault();
+                    
+                    // Aktuelle Frage identifizieren
+                    const input = document.querySelector(`#answer-${currentIndex}`);
+                    
+                    // Wenn es die letzte Frage ist, Formular absenden
+                    if (currentIndex === totalQuestions - 1) {
+                        if (input.value.trim() !== '') {
+                            document.getElementById('testForm').submit();
+                        } else {
+                            input.classList.add('is-invalid');
+                        }
+                    } 
+                    // Sonst zur nächsten Frage navigieren
+                    else {
+                        if (input.value.trim() !== '') {
+                            // Aktuelle Frage ausblenden
+                            document.querySelector(`#question-${currentIndex}`).style.display = 'none';
+                            
+                            // Nächste Frage einblenden
+                            document.querySelector(`#question-${currentIndex + 1}`).style.display = 'block';
+                            document.querySelector(`#answer-${currentIndex + 1}`).focus();
+                            
+                            // Fortschrittsanzeige aktualisieren
+                            currentIndex++;
+                            updateProgress();
+                        } else {
+                            input.classList.add('is-invalid');
+                        }
+                    }
+                }
+            });
+            
             // Automatisch Focus auf das erste Eingabefeld setzen
             document.querySelector('#answer-0').focus();
             
