@@ -14,7 +14,7 @@ $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
 // Datenbankverbindung herstellen
 $servername = "localhost";
 $dbUsername = "root"; // Standardmäßig "root" bei XAMPP
-$dbPassword = "root"; // Standardmäßig leer bei XAMPP
+$dbPassword = "root"; // Standardmäßig "root" bei XAMPP, anpassen falls nötig
 $dbName = "vokabeln"; // Hier Datenbankname anpassen falls nötig
 
 $conn = new mysqli($servername, $dbUsername, $dbPassword, $dbName);
