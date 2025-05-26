@@ -8,8 +8,40 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-// Benutzername aus der Session holen
+// Benutzername und ID aus der Session holen
 $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
+$user_id = $_SESSION['user_id'];
+
+// Datenbankverbindung herstellen
+$servername = "localhost";
+$dbUsername = "root"; 
+$dbPassword = "root"; // Oder "root" je nach Konfiguration
+$dbName = "vokabeln"; 
+
+$conn = new mysqli($servername, $dbUsername, $dbPassword, $dbName);
+
+// Verbindung überprüfen
+if ($conn->connect_error) {
+    die("Verbindung fehlgeschlagen: " . $conn->connect_error);
+}
+
+// Heutiges Datum
+$today = date('Y-m-d');
+
+// Gelernte Vokabeln heute abrufen
+$stmt = $conn->prepare("SELECT count FROM vocabulary_tracking WHERE user_id = ? AND learn_date = ?");
+$stmt->bind_param("is", $user_id, $today);
+$stmt->execute();
+$result = $stmt->get_result();
+
+$vocab_count = 0;
+if ($result->num_rows > 0) {
+    $row = $result->fetch_assoc();
+    $vocab_count = $row['count'];
+}
+
+$stmt->close();
+$conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -268,7 +300,7 @@ $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
         
         <div class="stats-container">
             <div class="stat-card">
-                <h3>0</h3>
+                <h3><?php echo $vocab_count; ?></h3>
                 <p>Gelernte Vokabeln heute</p>
             </div>
             <div class="stat-card">

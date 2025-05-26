@@ -318,7 +318,32 @@ if (count($vocabularies) == 0) {
         flashcard.addEventListener('click', () => {
             flashcard.classList.toggle('flipped');
             isFlipped = !isFlipped;
+            
+            // Track vocabulary when card is flipped to see answer
+            if (isFlipped) {
+                trackLearnedVocab();
+            }
         });
+        
+        // Vocabulary tracking function
+        function trackLearnedVocab() {
+            // Create form data
+            const formData = new FormData();
+            formData.append('learned', '1');
+            
+            // Send AJAX request
+            fetch('track_vocabulary.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log('Vocabulary tracked:', data);
+            })
+            .catch(error => {
+                console.error('Error tracking vocabulary:', error);
+            });
+        }
         
         // Nächste Karte
         nextButton.addEventListener('click', () => {

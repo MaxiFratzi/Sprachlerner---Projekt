@@ -13,9 +13,9 @@ $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
 
 // Datenbankverbindung herstellen
 $servername = "localhost";
-$dbUsername = "root"; // Standardmäßig "root" bei XAMPP
-$dbPassword = "root"; // Standardmäßig leer bei XAMPP
-$dbName = "vokabeln"; // Hier Datenbankname anpassen falls nötig
+$dbUsername = "root";
+$dbPassword = "root"; // Match this with main.php
+$dbName = "vokabeln"; // Match this with main.php
 
 $conn = new mysqli($servername, $dbUsername, $dbPassword, $dbName);
 
@@ -318,7 +318,32 @@ if (count($vocabularies) == 0) {
         flashcard.addEventListener('click', () => {
             flashcard.classList.toggle('flipped');
             isFlipped = !isFlipped;
+            
+            // Track vocabulary when card is flipped to see answer
+            if (isFlipped) {
+                trackLearnedVocab();
+            }
         });
+        
+        // Vocabulary tracking function
+        function trackLearnedVocab() {
+            // Create form data
+            const formData = new FormData();
+            formData.append('learned', '1');
+            
+            // Send AJAX request
+            fetch('track_vocabulary.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log('Vocabulary tracked:', data);
+            })
+            .catch(error => {
+                console.error('Error tracking vocabulary:', error);
+            });
+        }
         
         // Nächste Karte
         nextButton.addEventListener('click', () => {

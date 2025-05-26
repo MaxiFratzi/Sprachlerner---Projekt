@@ -395,7 +395,32 @@ $currentWordData = isset($vocabularies[$currentWord]) ? $vocabularies[$currentWo
             if (inputField) {
                 inputField.focus();
             }
+            
+            // Check if answer was correct from PHP and track it
+            <?php if ($isCorrect): ?>
+                trackCorrectAnswer();
+            <?php endif; ?>
         });
+
+        // Track vocabulary when answered correctly
+        function trackCorrectAnswer() {
+            // Create form data for Ajax request
+            const formData = new FormData();
+            formData.append('learned', '1');
+            
+            // Send AJAX request to tracking script
+            fetch('track_vocabulary.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(data => {
+                console.log('Vocabulary tracked:', data);
+            })
+            .catch(error => {
+                console.error('Error tracking vocabulary:', error);
+            });
+        }
     </script>
 </body>
 </html>
