@@ -334,7 +334,7 @@ foreach ($learning_sets as $set) {
                 </div>
             </div>
             <div class="text-center mt-4">
-                <p>&copy; 2025 SprachMeister. Alle Rechte vorbehalten.</p>
+                <p>&copy; 2025 SprachenMeister. Alle Rechte vorbehalten.</p>
             </div>
         </div>
     </footer>
