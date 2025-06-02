@@ -8,14 +8,22 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Prüfen, ob Lernset-ID übergeben wurde
+if (!isset($_GET['set_id']) || empty($_GET['set_id'])) {
+    header("Location: main.php");
+    exit();
+}
+
+$set_id = (int)$_GET['set_id'];
+
 // Benutzername aus der Session holen
 $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
 
 // Datenbankverbindung herstellen
 $servername = "localhost";
 $dbUsername = "root";
-$dbPassword = "root"; // Match this with main.php
-$dbName = "vokabeln"; // Match this with main.php
+$dbPassword = "root";
+$dbName = "vokabeln";
 
 $conn = new mysqli($servername, $dbUsername, $dbPassword, $dbName);
 
@@ -24,9 +32,26 @@ if ($conn->connect_error) {
     die("Verbindung fehlgeschlagen: " . $conn->connect_error);
 }
 
+// Lernset-Informationen abrufen
+$stmt = $conn->prepare("SELECT name, sprache1, sprache2 FROM lernsets WHERE id = ?");
+$stmt->bind_param("i", $set_id);
+$stmt->execute();
+$lernset_result = $stmt->get_result();
+
+if ($lernset_result->num_rows == 0) {
+    $conn->close();
+    header("Location: main.php");
+    exit();
+}
+
+$lernset = $lernset_result->fetch_assoc();
+$stmt->close();
+
 // Vokabeln aus der Datenbank abrufen
-$sql = "SELECT id, englisch, deutsch FROM woertere";
-$result = $conn->query($sql);
+$stmt = $conn->prepare("SELECT id, wort_sprache1, wort_sprache2 FROM vokabeln WHERE lernset_id = ?");
+$stmt->bind_param("i", $set_id);
+$stmt->execute();
+$result = $stmt->get_result();
 
 $vocabularies = array();
 if ($result->num_rows > 0) {
@@ -35,6 +60,7 @@ if ($result->num_rows > 0) {
     }
 }
 
+$stmt->close();
 $conn->close();
 
 // Falls keine Vokabeln gefunden wurden
@@ -198,6 +224,22 @@ if (count($vocabularies) == 0) {
             font-weight: 600;
             border-radius: 50px;
         }
+
+        .lernset-info {
+            text-align: center;
+            margin-bottom: 2rem;
+            padding: 1rem;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .language-labels {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            color: #666;
+        }
     </style>
 </head>
 <body>
@@ -232,6 +274,7 @@ if (count($vocabularies) == 0) {
     <!-- Library Header -->
     <div class="library-header">
         <h1>Karteikarten Lernen</h1>
+        <h4><?php echo htmlspecialchars($lernset['name']); ?></h4>
         <p class="mt-2">Klicke auf die Karte zum Umdrehen</p>
     </div>
 
@@ -241,10 +284,19 @@ if (count($vocabularies) == 0) {
             <div class="text-center py-5">
                 <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
                 <h3>Keine Vokabeln gefunden</h3>
-                <p class="text-muted">Es wurden keine Vokabeln in der Datenbank gefunden.</p>
-                <a href="easyVoc.php" class="btn btn-primary mt-3">Zurück zur Übersicht</a>
+                <p class="text-muted">Es wurden keine Vokabeln in diesem Lernset gefunden.</p>
+                <a href="voc.php?set_id=<?php echo $set_id; ?>" class="btn btn-primary mt-3">Zurück zur Übersicht</a>
             </div>
         <?php else: ?>
+            <!-- Lernset Info -->
+            <div class="lernset-info">
+                <h5><?php echo htmlspecialchars($lernset['name']); ?></h5>
+                <div class="language-labels">
+                    <span><strong><?php echo htmlspecialchars($lernset['sprache1']); ?></strong></span>
+                    <span><strong><?php echo htmlspecialchars($lernset['sprache2']); ?></strong></span>
+                </div>
+            </div>
+
             <!-- Completion Screen (initially hidden) -->
             <div id="completionScreen" class="text-center py-5" style="display: none;">
                 <i class="fas fa-check-circle fa-3x text-success mb-3"></i>
@@ -254,7 +306,7 @@ if (count($vocabularies) == 0) {
                     <button id="restartButton" class="btn btn-success">
                         <i class="fas fa-redo me-2"></i>Lernset erneut lernen
                     </button>
-                    <a href="easyVoc.php" class="btn btn-primary">
+                    <a href="voc.php?set_id=<?php echo $set_id; ?>" class="btn btn-primary">
                         <i class="fas fa-th-large me-2"></i>Zurück zur Übersicht
                     </a>
                 </div>
@@ -279,7 +331,7 @@ if (count($vocabularies) == 0) {
                         <button id="prevButton" class="btn btn-outline-primary">
                             <i class="fas fa-chevron-left me-2"></i>Zurück
                         </button>
-                        <a href="easyVoc.php" class="btn btn-outline-secondary ms-2">
+                        <a href="voc.php?set_id=<?php echo $set_id; ?>" class="btn btn-outline-secondary ms-2">
                             <i class="fas fa-th-large me-2"></i>Zurück zur Übersicht
                         </a>
                     </div>
@@ -297,6 +349,7 @@ if (count($vocabularies) == 0) {
     <script>
         // Vokabeln als JavaScript Array
         const vocabularies = <?php echo json_encode($vocabularies); ?>;
+        const setId = <?php echo $set_id; ?>;
         let currentIndex = 0;
         let isFlipped = false;
         let isCompleted = false;
@@ -330,6 +383,8 @@ if (count($vocabularies) == 0) {
             // Create form data
             const formData = new FormData();
             formData.append('learned', '1');
+            formData.append('set_id', setId);
+            formData.append('vocab_id', vocabularies[currentIndex].id);
             
             // Send AJAX request
             fetch('track_vocabulary.php', {
@@ -377,8 +432,8 @@ if (count($vocabularies) == 0) {
         
         // Karte aktualisieren
         function updateCard() {
-            frontText.textContent = vocabularies[currentIndex].englisch;
-            backText.textContent = vocabularies[currentIndex].deutsch;
+            frontText.textContent = vocabularies[currentIndex].wort_sprache1;
+            backText.textContent = vocabularies[currentIndex].wort_sprache2;
             currentCardSpan.textContent = currentIndex + 1;
             
             // Prüfen ob es die erste oder letzte Karte ist
