@@ -163,6 +163,9 @@ $user_stmt->close();
                     <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#deleteAccountModal">
                         Account löschen
                     </button>
+                    <a href="main.php" class="btn btn-outline-secondary">
+                        <i class="fas fa-home me-2"></i>Home
+                    </a>
                 </div>
             </form>
         </div>
