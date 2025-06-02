@@ -25,6 +25,30 @@ if ($conn->connect_error) {
     die("Verbindung fehlgeschlagen: " . $conn->connect_error);
 }
 
+// Suchfunktion
+$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+$learning_sets = [];
+
+// Alle verfügbaren Lernsets definieren (du kannst diese auch aus der Datenbank laden)
+$all_sets = [
+    ['name' => 'Easy', 'terms' => 48, 'file' => 'easyVoc.php', 'description' => 'Einfache Vokabeln für Anfänger'],
+    ['name' => 'Medium', 'terms' => 48, 'file' => 'mediumVoc.php', 'description' => 'Mittelschwere Vokabeln'],
+    ['name' => 'Hard', 'terms' => 48, 'file' => 'hardVoc.php', 'description' => 'Schwere Vokabeln für Fortgeschrittene'],
+    // Hier kannst du weitere Sets hinzufügen
+];
+
+// Suche durchführen
+if (!empty($search_query)) {
+    foreach ($all_sets as $set) {
+        if (stripos($set['name'], $search_query) !== false || 
+            stripos($set['description'], $search_query) !== false) {
+            $learning_sets[] = $set;
+        }
+    }
+} else {
+    $learning_sets = $all_sets;
+}
+
 // Heutiges Datum
 $today = date('Y-m-d');
 
@@ -261,7 +285,7 @@ $conn->close();
         
         .set-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
             gap: 20px;
         }
         
@@ -288,6 +312,12 @@ $conn->close();
             margin-bottom: 10px;
         }
         
+        .set-card .description {
+            color: #888;
+            font-size: 0.85rem;
+            margin-bottom: 15px;
+        }
+        
         .btn-primary {
             background-color: var(--primary-color);
             border-color: var(--primary-color);
@@ -296,6 +326,36 @@ $conn->close();
         .btn-outline-primary {
             color: var(--primary-color);
             border-color: var(--primary-color);
+        }
+        
+        .search-form {
+            position: relative;
+        }
+        
+        .search-form input {
+            border-radius: 20px;
+            padding-left: 45px;
+        }
+        
+        .search-form .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+        }
+        
+        .no-results {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            margin: 20px 0;
+        }
+        
+        .search-results-info {
+            margin-bottom: 20px;
+            color: #666;
+            font-size: 0.9rem;
         }
     </style>
 </head>
@@ -308,8 +368,15 @@ $conn->close();
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <form class="d-flex mx-auto mb-2 mb-lg-0">
-                    <input class="form-control me-2" type="search" placeholder="Nach Vokabeln suchen" style="width: 250px; border-radius: 20px;">
+                <form class="d-flex mx-auto mb-2 mb-lg-0 search-form" method="GET" action="main.php">
+                    <i class="fas fa-search search-icon"></i>
+                    <input class="form-control me-2" type="search" name="search" 
+                           placeholder="Nach Lernsets suchen..." 
+                           value="<?php echo htmlspecialchars($search_query); ?>"
+                           style="width: 300px; border-radius: 20px;">
+                    <button class="btn btn-outline-primary" type="submit" style="border-radius: 20px;">
+                        <i class="fas fa-search"></i>
+                    </button>
                 </form>
                 <div class="ms-auto me-4">
                     <div class="dropdown">
@@ -370,28 +437,64 @@ $conn->close();
         </div>
         
         <div class="recent-sets">
-            <h2>Kürzlich gelernte Sets</h2>
-            <div class="set-grid">
-                <div class="set-card">
-                    <h4>Easy</h4>
-                    <p>48 Begriffe</p>
-                    <a href="easyVoc.php" class="btn btn-primary btn-sm">Weiter lernen</a>
+            <h2>
+                <?php if (!empty($search_query)): ?>
+                    Suchergebnisse für "<?php echo htmlspecialchars($search_query); ?>"
+                <?php else: ?>
+                    Verfügbare Lernsets
+                <?php endif; ?>
+            </h2>
+            
+            <?php if (!empty($search_query)): ?>
+                <div class="search-results-info">
+                    <?php echo count($learning_sets); ?> Ergebnis(se) gefunden
+                    <a href="main.php" class="ms-2 text-decoration-none">
+                        <i class="fas fa-times"></i> Suche zurücksetzen
+                    </a>
                 </div>
-                <div class="set-card">
-                    <h4>Medium</h4>
-                    <p>48 Begriffe</p>
-                    <a href="mediumVoc.php" class="btn btn-primary btn-sm">Weiter lernen</a>
+            <?php endif; ?>
+            
+            <?php if (empty($learning_sets)): ?>
+                <div class="no-results">
+                    <i class="fas fa-search fa-2x mb-3"></i>
+                    <p>Keine Lernsets gefunden für "<?php echo htmlspecialchars($search_query); ?>"</p>
+                    <a href="main.php" class="btn btn-outline-primary">Alle Sets anzeigen</a>
                 </div>
-                <div class="set-card">
-                    <h4>Hard</h4>
-                    <p>48 Begriffe</p>
-                    <a href="hardVoc.php" class="btn btn-primary btn-sm">Weiter lernen</a>
+            <?php else: ?>
+                <div class="set-grid">
+                    <?php foreach ($learning_sets as $set): ?>
+                        <div class="set-card">
+                            <h4><?php echo htmlspecialchars($set['name']); ?></h4>
+                            <p><?php echo $set['terms']; ?> Begriffe</p>
+                            <div class="description"><?php echo htmlspecialchars($set['description']); ?></div>
+                            <a href="<?php echo htmlspecialchars($set['file']); ?>" class="btn btn-primary btn-sm">
+                                Weiter lernen
+                            </a>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
-            </div>
+            <?php endif; ?>
         </div>
     </div>
 
     <!-- Bootstrap and JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Optional: Auto-submit bei Enter-Taste
+        document.querySelector('input[name="search"]').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                this.closest('form').submit();
+            }
+        });
+        
+        // Optional: Suchfeld fokussieren mit Strg+K
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'k') {
+                e.preventDefault();
+                document.querySelector('input[name="search"]').focus();
+            }
+        });
+    </script>
 </body>
 </html>
