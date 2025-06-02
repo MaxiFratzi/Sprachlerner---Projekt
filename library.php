@@ -12,49 +12,66 @@ session_start();
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $learning_sets = [];
 
-// Alle verfügbaren Lernsets definieren
-$all_sets = [
+// Alle verfügbaren Standard-Lernsets definieren
+$standard_sets = [
     [
         'name' => 'Easy', 
         'terms' => 48, 
         'file' => 'easyVoc.php', 
         'description' => 'Einfache Vokabeln für Anfänger',
-        'category' => 'Diese Woche'
+        'type' => 'standard'
     ],
     [
         'name' => 'Medium', 
         'terms' => 48, 
         'file' => 'mediumVoc.php', 
         'description' => 'Mittelschwere Vokabeln',
-        'category' => 'Im April 2025'
+        'type' => 'standard'
     ],
     [
         'name' => 'Hard', 
         'terms' => 48, 
         'file' => 'hardVoc.php', 
         'description' => 'Schwere Vokabeln für Fortgeschrittene',
-        'category' => 'Im März 2025'
-    ],
-    // Hier können Sie weitere Sets hinzufügen
+        'type' => 'standard'
+    ]
 ];
+
+// Custom Lernsets laden (hier sollten Sie Ihre Datenbank-Abfrage einfügen)
+$custom_sets = [];
+// Beispiel für Custom Sets - ersetzen Sie dies durch Ihre Datenbankabfrage
+/*
+$custom_sets = [
+    [
+        'name' => 'Mein Spanisch Set',
+        'terms' => 25,
+        'file' => 'custom_set.php?id=1',
+        'description' => 'Selbst erstelltes Spanisch-Vokabular',
+        'type' => 'custom'
+    ],
+    [
+        'name' => 'Französisch Basics',
+        'terms' => 30,
+        'file' => 'custom_set.php?id=2',
+        'description' => 'Grundlegende französische Begriffe',
+        'type' => 'custom'
+    ]
+];
+*/
+
+// Alle Sets zusammenführen
+$all_sets = array_merge($standard_sets, $custom_sets);
 
 // Suche durchführen
 if (!empty($search_query)) {
     foreach ($all_sets as $set) {
         if (stripos($set['name'], $search_query) !== false || 
-            stripos($set['description'], $search_query) !== false ||
-            stripos($set['category'], $search_query) !== false) {
+            stripos($set['description'], $search_query) !== false) {
             $learning_sets[] = $set;
         }
     }
 } else {
     $learning_sets = $all_sets;
-}
-
-// Sets nach Kategorien gruppieren
-$grouped_sets = [];
-foreach ($learning_sets as $set) {
-    $grouped_sets[$set['category']][] = $set;
 }
 ?>
 
@@ -111,6 +128,13 @@ foreach ($learning_sets as $set) {
             font-weight: 600;
             padding: 0.5rem 1.5rem;
             border-radius: 50px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        
+        .library-tabs .nav-link:hover {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
         }
         
         .library-tabs .nav-link.active {
@@ -150,6 +174,9 @@ foreach ($learning_sets as $set) {
         .library-set-title {
             font-weight: 600;
             font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
         
         .library-set-details {
@@ -166,6 +193,14 @@ foreach ($learning_sets as $set) {
         .btn-primary {
             background-color: var(--primary-color);
             border-color: var(--primary-color);
+            padding: 10px 25px;
+            font-weight: 600;
+            border-radius: 50px;
+        }
+        
+        .btn-success {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
             padding: 10px 25px;
             font-weight: 600;
             border-radius: 50px;
@@ -221,6 +256,29 @@ foreach ($learning_sets as $set) {
         .navbar-search input {
             padding-left: 45px;
         }
+        
+
+        
+        .custom-set-badge {
+            background-color: var(--secondary-color);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        
+        .standard-set-badge {
+            background-color: var(--primary-color);
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+        }
+        
+        .library-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
     </style>
 </head>
 <body>
@@ -246,13 +304,18 @@ foreach ($learning_sets as $set) {
         </div>
     </nav>
 
-    <!-- Library Header -->
+            <!-- Library Header -->
     <div class="library-header">
         <h1>Deine Bibliothek</h1>
         <div class="library-tabs">
             <ul class="nav">
                 <li class="nav-item">
                     <a class="nav-link active" href="#lernsets">Lernsets</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="create_set.php">
+                        <i class="fas fa-plus"></i> Neues Lernset
+                    </a>
                 </li>
             </ul>
         </div>
@@ -270,6 +333,8 @@ foreach ($learning_sets as $set) {
                        style="border-radius: 20px;">
             </form>
         </div>
+
+
 
         <?php if (!empty($search_query)): ?>
             <div class="search-results-info">
@@ -289,22 +354,29 @@ foreach ($learning_sets as $set) {
                 <a href="library.php" class="btn btn-outline-primary">Alle Sets anzeigen</a>
             </div>
         <?php else: ?>
-            <?php foreach ($grouped_sets as $category => $sets): ?>
-                <h4 class="mb-3 <?php echo ($category !== array_key_first($grouped_sets)) ? 'mt-4' : ''; ?>">
-                    <?php echo htmlspecialchars($category); ?>
-                </h4>
-                <?php foreach ($sets as $set): ?>
-                    <div class="library-set">
-                        <div class="library-set-info">
-                            <div class="library-set-title"><?php echo htmlspecialchars($set['name']); ?></div>
-                            <div class="library-set-details"><?php echo $set['terms']; ?> Begriffe</div>
-                            <div class="library-set-description"><?php echo htmlspecialchars($set['description']); ?></div>
+            <h4 class="mb-3">Alle Lernsets</h4>
+            <?php foreach ($learning_sets as $set): ?>
+                <div class="library-set">
+                    <div class="library-set-info">
+                        <div class="library-set-title">
+                            <?php echo htmlspecialchars($set['name']); ?>
+                            <?php if ($set['type'] === 'custom'): ?>
+                                <span class="custom-set-badge">Custom</span>
+                            <?php else: ?>
+                                <span class="standard-set-badge">Standard</span>
+                            <?php endif; ?>
                         </div>
-                        <div>
-                            <a href="<?php echo htmlspecialchars($set['file']); ?>" class="btn btn-primary">Lernen</a>
-                        </div>
+                        <div class="library-set-details"><?php echo $set['terms']; ?> Begriffe</div>
+                        <div class="library-set-description"><?php echo htmlspecialchars($set['description']); ?></div>
                     </div>
-                <?php endforeach; ?>
+                    <div class="library-actions">
+                        <?php if ($set['type'] === 'custom'): ?>
+                            <a href="custom_set.php?id=<?php echo urlencode(basename($set['file'], '.php')); ?>" class="btn btn-primary">Lernen</a>
+                        <?php else: ?>
+                            <a href="<?php echo htmlspecialchars($set['file']); ?>" class="btn btn-primary">Lernen</a>
+                        <?php endif; ?>
+                    </div>
+                </div>
             <?php endforeach; ?>
         <?php endif; ?>
     </div>
