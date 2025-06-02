@@ -1,6 +1,61 @@
 <?php
 // Start Session
 session_start();
+
+// Prüfen, ob Benutzer eingeloggt ist (optional, je nach Ihren Anforderungen)
+// if (!isset($_SESSION['user_id'])) {
+//     header("Location: login.php");
+//     exit();
+// }
+
+// Suchfunktion
+$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
+$learning_sets = [];
+
+// Alle verfügbaren Lernsets definieren
+$all_sets = [
+    [
+        'name' => 'Easy', 
+        'terms' => 48, 
+        'file' => 'easyVoc.php', 
+        'description' => 'Einfache Vokabeln für Anfänger',
+        'category' => 'Diese Woche'
+    ],
+    [
+        'name' => 'Medium', 
+        'terms' => 48, 
+        'file' => 'mediumVoc.php', 
+        'description' => 'Mittelschwere Vokabeln',
+        'category' => 'Im April 2025'
+    ],
+    [
+        'name' => 'Hard', 
+        'terms' => 48, 
+        'file' => 'hardVoc.php', 
+        'description' => 'Schwere Vokabeln für Fortgeschrittene',
+        'category' => 'Im März 2025'
+    ],
+    // Hier können Sie weitere Sets hinzufügen
+];
+
+// Suche durchführen
+if (!empty($search_query)) {
+    foreach ($all_sets as $set) {
+        if (stripos($set['name'], $search_query) !== false || 
+            stripos($set['description'], $search_query) !== false ||
+            stripos($set['category'], $search_query) !== false) {
+            $learning_sets[] = $set;
+        }
+    }
+} else {
+    $learning_sets = $all_sets;
+}
+
+// Sets nach Kategorien gruppieren
+$grouped_sets = [];
+foreach ($learning_sets as $set) {
+    $grouped_sets[$set['category']][] = $set;
+}
 ?>
 
 <!DOCTYPE html>
@@ -102,6 +157,12 @@ session_start();
             font-size: 0.9rem;
         }
         
+        .library-set-description {
+            color: #888;
+            font-size: 0.85rem;
+            margin-top: 5px;
+        }
+        
         .btn-primary {
             background-color: var(--primary-color);
             border-color: var(--primary-color);
@@ -112,6 +173,53 @@ session_start();
         
         .search-bar {
             margin-bottom: 1.5rem;
+            position: relative;
+        }
+        
+        .search-bar input {
+            padding-left: 45px;
+        }
+        
+        .search-bar .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+            z-index: 2;
+        }
+        
+        .search-results-info {
+            margin-bottom: 20px;
+            color: #666;
+            font-size: 0.9rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .no-results {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            margin: 40px 0;
+        }
+        
+        .navbar-search {
+            position: relative;
+        }
+        
+        .navbar-search .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+            z-index: 2;
+        }
+        
+        .navbar-search input {
+            padding-left: 45px;
         }
     </style>
 </head>
@@ -124,8 +232,15 @@ session_start();
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <form class="d-flex mx-auto mb-2 mb-lg-0">
-                    <input class="form-control me-2" type="search" placeholder="Nach Übungstests suchen" style="width: 250px; border-radius: 20px;">
+                <form class="d-flex mx-auto mb-2 mb-lg-0 navbar-search" method="GET" action="library.php">
+                    <i class="fas fa-search search-icon"></i>
+                    <input class="form-control me-2" type="search" name="search" 
+                           placeholder="Nach Lernsets suchen..." 
+                           value="<?php echo htmlspecialchars($search_query); ?>"
+                           style="width: 300px; border-radius: 20px;">
+                    <button class="btn btn-outline-primary" type="submit" style="border-radius: 20px;">
+                        <i class="fas fa-search"></i>
+                    </button>
                 </form>
             </div>
         </div>
@@ -145,45 +260,53 @@ session_start();
 
     <!-- Library Content -->
     <div class="library-content">
+        <!-- Interne Suchleiste -->
         <div class="search-bar">
-            <input type="text" class="form-control" placeholder="Karteikarten suchen" style="border-radius: 20px;">
+            <form method="GET" action="library.php">
+                <i class="fas fa-search search-icon"></i>
+                <input type="text" class="form-control" name="search" 
+                       placeholder="Karteikarten suchen..." 
+                       value="<?php echo htmlspecialchars($search_query); ?>"
+                       style="border-radius: 20px;">
+            </form>
         </div>
 
-        <!-- Diese Woche -->
-        <h4 class="mb-3">Diese Woche</h4>
-        <div class="library-set">
-            <div class="library-set-info">
-                <div class="library-set-title">Easy</div>
-                <div class="library-set-details">48 Begriffe</div>
+        <?php if (!empty($search_query)): ?>
+            <div class="search-results-info">
+                <span>
+                    <?php echo count($learning_sets); ?> Ergebnis(se) gefunden für "<?php echo htmlspecialchars($search_query); ?>"
+                </span>
+                <a href="library.php" class="text-decoration-none">
+                    <i class="fas fa-times"></i> Suche zurücksetzen
+                </a>
             </div>
-            <div>
-                <a href="easyVoc.php" class="btn btn-primary">Lernen</a>
-            </div>
-        </div>
+        <?php endif; ?>
 
-        <!-- Im April 2025 -->
-        <h4 class="mt-4 mb-3">Im April 2025</h4>
-        <div class="library-set">
-            <div class="library-set-info">
-                <div class="library-set-title">Medium</div>
-                <div class="library-set-details">48 Begriffe</div>
+        <?php if (empty($learning_sets)): ?>
+            <div class="no-results">
+                <i class="fas fa-search fa-2x mb-3"></i>
+                <p>Keine Lernsets gefunden für "<?php echo htmlspecialchars($search_query); ?>"</p>
+                <a href="library.php" class="btn btn-outline-primary">Alle Sets anzeigen</a>
             </div>
-            <div>
-                <a href="mediumVoc.php" class="btn btn-primary">Lernen</a>
-            </div>
-        </div>
-
-        <!-- Im März 2025 -->
-        <h4 class="mt-4 mb-3">Im März 2025</h4>
-        <div class="library-set">
-            <div class="library-set-info">
-                <div class="library-set-title">Hard</div>
-                <div class="library-set-details">48 Begriffe</div>
-            </div>
-            <div>
-                <a href="hardVoc.php" class="btn btn-primary">Lernen</a>
-            </div>
-        </div>
+        <?php else: ?>
+            <?php foreach ($grouped_sets as $category => $sets): ?>
+                <h4 class="mb-3 <?php echo ($category !== array_key_first($grouped_sets)) ? 'mt-4' : ''; ?>">
+                    <?php echo htmlspecialchars($category); ?>
+                </h4>
+                <?php foreach ($sets as $set): ?>
+                    <div class="library-set">
+                        <div class="library-set-info">
+                            <div class="library-set-title"><?php echo htmlspecialchars($set['name']); ?></div>
+                            <div class="library-set-details"><?php echo $set['terms']; ?> Begriffe</div>
+                            <div class="library-set-description"><?php echo htmlspecialchars($set['description']); ?></div>
+                        </div>
+                        <div>
+                            <a href="<?php echo htmlspecialchars($set['file']); ?>" class="btn btn-primary">Lernen</a>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            <?php endforeach; ?>
+        <?php endif; ?>
     </div>
 
     <!-- Footer -->
@@ -218,5 +341,24 @@ session_start();
 
     <!-- Bootstrap and JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Auto-submit bei Enter-Taste
+        document.querySelectorAll('input[name="search"]').forEach(function(input) {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    this.closest('form').submit();
+                }
+            });
+        });
+        
+        // Suchfeld fokussieren mit Strg+K
+        document.addEventListener('keydown', function(e) {
+            if (e.ctrlKey && e.key === 'k') {
+                e.preventDefault();
+                document.querySelector('input[name="search"]').focus();
+            }
+        });
+    </script>
 </body>
 </html>
