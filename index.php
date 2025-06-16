@@ -135,7 +135,7 @@ session_start();
     <section class="hero-section">
         <div class="container">
             <h1>Wie möchtest du lernen?</h1>
-            <p class="hero-text">Mit den interaktiven Karteikarten, Übungstests und Lernaktivitäten von SprachMeister lernst du alles, was du willst.</p>
+            <p class="hero-text">Mit den interaktiven Karteikarten, Übungstests und Lernaktivitäten von SprachenMeister lernst du alles, was du willst.</p>
             <a href="register.php" class="btn btn-primary btn-lg mb-4">
                 Kostenlos registrieren
             </a>
@@ -230,7 +230,7 @@ session_start();
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <h5>SprachMeister</h5>
+                    <h5>SprachenMeister</h5>
                     <p>Lerne Sprachen einfach und effektiv mit unserem interaktiven Sprachentrainer.</p>
                 </div>
                 <div class="col-md-3">
