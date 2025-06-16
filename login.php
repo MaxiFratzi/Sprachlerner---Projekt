@@ -59,6 +59,8 @@ $conn->close();
     <title>SprachMeister - Anmelden</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome für Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         body {
             background-color: #f4f4f7;
@@ -76,11 +78,29 @@ $conn->close();
             box-shadow: 0 10px 25px rgba(0,0,0,0.1);
             width: 100%;
             max-width: 400px;
+            position: relative;
+        }
+        
+        .back-button {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: none;
+            border: none;
+            color: #6c757d;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+        
+        .back-button:hover {
+            color: #4255ff;
         }
         
         .login-header {
             text-align: center;
             margin-bottom: 2rem;
+            margin-top: 1rem;
         }
         
         .login-header h2 {
@@ -117,6 +137,11 @@ $conn->close();
 </head>
 <body>
     <div class="login-container">
+        <!-- Zurück-Button -->
+        <button class="back-button" onclick="window.location.href='index.php'" title="Zurück zur Startseite">
+            <i class="fas fa-arrow-left"></i>
+        </button>
+        
         <div class="login-header">
             <h2>SprachMeister</h2>
             <p>Melde dich an, um deine Lernreise fortzusetzen</p>
