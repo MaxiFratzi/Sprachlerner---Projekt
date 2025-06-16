@@ -455,6 +455,7 @@ $conn->close();
                             <li><span class="dropdown-item-text">Angemeldet als <strong><?php echo htmlspecialchars($username); ?></strong></span></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="account.php"><i class="fas fa-user-cog me-2"></i>Mein Account</a></li>
+                            <li><a class="dropdown-item" href="index.php"><i class="fas fa-home me-2"></i>Zur Startseite</a></li>
                             <li><a class="dropdown-item" href="logout.php"><i class="fas fa-sign-out-alt me-2"></i>Ausloggen</a></li>
                         </ul>
                     </div>
