@@ -60,7 +60,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SprachenMeister - Registrierung</title>
+    <title>SprachMeister - Registrierung</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
@@ -88,7 +88,7 @@ $conn->close();
 </head>
 <body>
     <div class="register-container">
-        <h2 class="text-center mb-4">SprachenMeister Registrierung</h2>
+        <h2 class="text-center mb-4">SprachMeister Registrierung</h2>
         
         <?php if (isset($register_error)): ?>
             <div class="alert alert-danger"><?= htmlspecialchars($register_error) ?></div>

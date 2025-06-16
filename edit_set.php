@@ -1,5 +1,5 @@
 <?php
-// filepath: c:\xampp\htdocs\3BHWII\Sprachlerner - Projekt\create_set.php
+// filepath: c:\xampp\htdocs\3BHWII\Sprachlerner - Projekt\edit_set.php
 // Start Session
 session_start();
 
@@ -9,6 +9,13 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Prüfen, ob Lernset-ID übergeben wurde
+if (!isset($_GET['id']) || empty($_GET['id'])) {
+    header("Location: library.php");
+    exit();
+}
+
+$lernset_id = intval($_GET['id']);
 $user_id = $_SESSION['user_id'];
 $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
 
@@ -25,93 +32,164 @@ if ($conn->connect_error) {
     die("Verbindung fehlgeschlagen: " . $conn->connect_error);
 }
 
-// Variablen für Formular und Feedback
-$setName = '';
-$setDescription = '';
+// Lernset laden und prüfen, ob der Benutzer Berechtigung hat
+$sql = "SELECT * FROM lernsets WHERE id = ? AND type = 'custom' AND user_id = ? AND is_active = 1";
+$stmt = $conn->prepare($sql);
+$stmt->bind_param("ii", $lernset_id, $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+
+if ($result->num_rows === 0) {
+    header("Location: library.php");
+    exit();
+}
+
+$lernset = $result->fetch_assoc();
+
+// Vokabeln aus der Datenbank laden
+$vocab_sql = "SELECT * FROM vokabeln WHERE lernset_id = ? ORDER BY id ASC";
+$vocab_stmt = $conn->prepare($vocab_sql);
+$vocab_stmt->bind_param("i", $lernset_id);
+$vocab_stmt->execute();
+$vocab_result = $vocab_stmt->get_result();
+
 $vocabularies = [];
+while($row = $vocab_result->fetch_assoc()) {
+    $vocabularies[] = $row;
+}
+
+// Variablen für Formular und Feedback
+$setName = $lernset['name'];
+$setDescription = $lernset['description'];
 $message = '';
 $messageType = '';
 
 // Formular verarbeiten
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $setName = trim($_POST['setName'] ?? '');
-    $setDescription = trim($_POST['setDescription'] ?? '');
-    $vocabularies_post = $_POST['vocabularies'] ?? [];
-    
-    // Validierung
-    $errors = [];
-    
-    if (empty($setName)) {
-        $errors[] = "Lernset-Name ist erforderlich.";
-    }
-    
-    if (strlen($setName) > 255) {
-        $errors[] = "Lernset-Name darf maximal 255 Zeichen lang sein.";
-    }
-    
-    if (strlen($setDescription) > 500) {
-        $errors[] = "Beschreibung darf maximal 500 Zeichen lang sein.";
-    }
-    
-    // Vokabeln validieren
-    $validVocabularies = [];
-    foreach ($vocabularies_post as $vocab) {
-        $deutsch = trim($vocab['deutsch'] ?? '');
-        $fremdsprache = trim($vocab['fremdsprache'] ?? '');
+    if (isset($_POST['action'])) {
         
-        if (!empty($deutsch) && !empty($fremdsprache)) {
-            if (strlen($deutsch) <= 255 && strlen($fremdsprache) <= 255) {
-                $validVocabularies[] = [
-                    'deutsch' => $deutsch,
-                    'fremdsprache' => $fremdsprache
-                ];
+        // Lernset löschen
+        if ($_POST['action'] === 'delete') {
+            $conn->begin_transaction();
+            
+            try {
+                // Alle Vokabeln löschen
+                $delete_vocab_stmt = $conn->prepare("DELETE FROM vokabeln WHERE lernset_id = ?");
+                $delete_vocab_stmt->bind_param("i", $lernset_id);
+                $delete_vocab_stmt->execute();
+                
+                // Lernset als inaktiv markieren (Soft Delete)
+                $delete_set_stmt = $conn->prepare("UPDATE lernsets SET is_active = 0 WHERE id = ?");
+                $delete_set_stmt->bind_param("i", $lernset_id);
+                $delete_set_stmt->execute();
+                
+                $conn->commit();
+                
+                // Zur Bibliothek weiterleiten
+                header("Location: library.php?deleted=1");
+                exit();
+                
+            } catch (Exception $e) {
+                $conn->rollback();
+                $message = "Fehler beim Löschen des Lernsets: " . $e->getMessage();
+                $messageType = "error";
+            }
+        }
+        
+        // Lernset aktualisieren
+        else if ($_POST['action'] === 'update') {
+            $setName = trim($_POST['setName'] ?? '');
+            $setDescription = trim($_POST['setDescription'] ?? '');
+            $vocabularies_post = $_POST['vocabularies'] ?? [];
+            
+            // Validierung
+            $errors = [];
+            
+            if (empty($setName)) {
+                $errors[] = "Lernset-Name ist erforderlich.";
+            }
+            
+            if (strlen($setName) > 255) {
+                $errors[] = "Lernset-Name darf maximal 255 Zeichen lang sein.";
+            }
+            
+            if (strlen($setDescription) > 500) {
+                $errors[] = "Beschreibung darf maximal 500 Zeichen lang sein.";
+            }
+            
+            // Vokabeln validieren
+            $validVocabularies = [];
+            foreach ($vocabularies_post as $vocab) {
+                $id = intval($vocab['id'] ?? 0);
+                $deutsch = trim($vocab['deutsch'] ?? '');
+                $fremdsprache = trim($vocab['fremdsprache'] ?? '');
+                
+                if (!empty($deutsch) && !empty($fremdsprache)) {
+                    if (strlen($deutsch) <= 255 && strlen($fremdsprache) <= 255) {
+                        $validVocabularies[] = [
+                            'id' => $id,
+                            'deutsch' => $deutsch,
+                            'fremdsprache' => $fremdsprache
+                        ];
+                    } else {
+                        $errors[] = "Begriff und Definition dürfen jeweils maximal 255 Zeichen lang sein.";
+                    }
+                }
+            }
+            
+            if (empty($validVocabularies)) {
+                $errors[] = "Mindestens eine Vokabel ist erforderlich.";
+            }
+            
+            // Wenn keine Fehler, Lernset aktualisieren
+            if (empty($errors)) {
+                $conn->begin_transaction();
+                
+                try {
+                    // Lernset-Details aktualisieren
+                    $update_set_stmt = $conn->prepare("UPDATE lernsets SET name = ?, description = ?, updated_at = NOW() WHERE id = ?");
+                    $update_set_stmt->bind_param("ssi", $setName, $setDescription, $lernset_id);
+                    $update_set_stmt->execute();
+                    
+                    // Alle bestehenden Vokabeln löschen
+                    $delete_vocab_stmt = $conn->prepare("DELETE FROM vokabeln WHERE lernset_id = ?");
+                    $delete_vocab_stmt->bind_param("i", $lernset_id);
+                    $delete_vocab_stmt->execute();
+                    
+                    // Neue/aktualisierte Vokabeln einfügen
+                    $insert_vocab_stmt = $conn->prepare("INSERT INTO vokabeln (lernset_id, deutsch, fremdsprache, created_at) VALUES (?, ?, ?, NOW())");
+                    
+                    foreach ($validVocabularies as $vocab) {
+                        $insert_vocab_stmt->bind_param("iss", $lernset_id, $vocab['deutsch'], $vocab['fremdsprache']);
+                        $insert_vocab_stmt->execute();
+                    }
+                    
+                    $conn->commit();
+                    
+                    // Vokabeln neu laden
+                    $vocab_stmt = $conn->prepare($vocab_sql);
+                    $vocab_stmt->bind_param("i", $lernset_id);
+                    $vocab_stmt->execute();
+                    $vocab_result = $vocab_stmt->get_result();
+                    
+                    $vocabularies = [];
+                    while($row = $vocab_result->fetch_assoc()) {
+                        $vocabularies[] = $row;
+                    }
+                    
+                    $message = "Lernset erfolgreich aktualisiert!";
+                    $messageType = "success";
+                    
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    $message = "Fehler beim Aktualisieren des Lernsets: " . $e->getMessage();
+                    $messageType = "error";
+                }
             } else {
-                $errors[] = "Deutsch und Fremdsprache dürfen jeweils maximal 255 Zeichen lang sein.";
+                $message = implode("<br>", $errors);
+                $messageType = "error";
             }
         }
-    }
-    
-    if (empty($validVocabularies)) {
-        $errors[] = "Mindestens eine Vokabel ist erforderlich.";
-    }
-    
-    // Wenn keine Fehler, Lernset erstellen
-    if (empty($errors)) {
-        $conn->begin_transaction();
-        
-        try {
-            // Lernset in Datenbank einfügen
-            $stmt = $conn->prepare("INSERT INTO lernsets (name, description, type, user_id, is_active, created_at, updated_at) VALUES (?, ?, 'custom', ?, 1, NOW(), NOW())");
-            $stmt->bind_param("ssi", $setName, $setDescription, $user_id);
-            $stmt->execute();
-            
-            $lernset_id = $conn->insert_id;
-            
-            // Vokabeln einfügen
-            $vocab_stmt = $conn->prepare("INSERT INTO vokabeln (lernset_id, deutsch, fremdsprache, created_at) VALUES (?, ?, ?, NOW())");
-            
-            foreach ($validVocabularies as $vocab) {
-                $vocab_stmt->bind_param("iss", $lernset_id, $vocab['deutsch'], $vocab['fremdsprache']);
-                $vocab_stmt->execute();
-            }
-            
-            $conn->commit();
-            
-            // Zur Bibliothek weiterleiten
-            header("Location: library.php?created=1");
-            exit();
-            
-        } catch (Exception $e) {
-            $conn->rollback();
-            $message = "Fehler beim Erstellen des Lernsets: " . $e->getMessage();
-            $messageType = "error";
-        }
-    } else {
-        $message = implode("<br>", $errors);
-        $messageType = "error";
-        
-        // Eingaben für das Formular beibehalten
-        $vocabularies = $validVocabularies;
     }
 }
 
@@ -123,7 +201,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SprachenMeister - Neues Lernset erstellen</title>
+    <title>SprachenMeister - Lernset bearbeiten: <?php echo htmlspecialchars($setName); ?></title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Fontawesome Icons -->
@@ -153,23 +231,6 @@ $conn->close();
             font-size: 1.8rem;
             font-weight: bold;
             color: var(--primary-color);
-        }
-        
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            background-color: var(--primary-color);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            cursor: pointer;
-            transition: all 0.3s ease;
-        }
-        
-        .user-avatar:hover {
-            background-color: #3346e6;
         }
         
         .page-header {
@@ -317,6 +378,22 @@ $conn->close();
             color: white;
         }
         
+        .btn-danger-custom {
+            background-color: var(--error-color);
+            border-color: var(--error-color);
+            color: white;
+            font-weight: 600;
+            border-radius: 50px;
+            padding: 1rem 2.5rem;
+            font-size: 1.1rem;
+        }
+        
+        .btn-danger-custom:hover {
+            background-color: #c82333;
+            border-color: #c82333;
+            color: white;
+        }
+        
         .alert {
             border-radius: 10px;
             padding: 1rem;
@@ -342,6 +419,10 @@ $conn->close();
             border-top: 2px solid #f8f9fa;
         }
         
+        .action-group {
+            margin-bottom: 2rem;
+        }
+        
         .back-link {
             color: var(--primary-color);
             text-decoration: none;
@@ -362,6 +443,24 @@ $conn->close();
             font-weight: 600;
             display: inline-block;
             margin-bottom: 1rem;
+        }
+        
+        .delete-section {
+            background-color: #fff5f5;
+            border: 2px solid #fed7d7;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-top: 3rem;
+        }
+        
+        .delete-section h4 {
+            color: var(--error-color);
+            margin-bottom: 1rem;
+        }
+        
+        .delete-section p {
+            color: #666;
+            margin-bottom: 1.5rem;
         }
         
         @media (max-width: 768px) {
@@ -394,6 +493,12 @@ $conn->close();
                 display: block;
                 margin-bottom: 1rem;
                 margin-right: 0;
+            }
+            
+            .action-group {
+                display: flex;
+                flex-direction: column;
+                gap: 1rem;
             }
         }
     </style>
@@ -434,8 +539,8 @@ $conn->close();
 
     <!-- Page Header -->
     <div class="page-header">
-        <h1><i class="fas fa-plus me-3"></i>Neues Lernset erstellen</h1>
-        <div class="subtitle">Erstelle dein eigenes Vokabel-Lernset</div>
+        <h1><i class="fas fa-edit me-3"></i>Lernset bearbeiten</h1>
+        <div class="subtitle"><?php echo htmlspecialchars($setName); ?></div>
     </div>
 
     <!-- Main Content -->
@@ -447,7 +552,9 @@ $conn->close();
             </div>
         <?php endif; ?>
 
-        <form method="POST" action="create_set.php" id="createSetForm">
+        <form method="POST" action="edit_set.php?id=<?php echo $lernset_id; ?>" id="editSetForm">
+            <input type="hidden" name="action" value="update">
+            
             <!-- Lernset-Details -->
             <div class="form-section">
                 <h3><i class="fas fa-info-circle me-2"></i>Lernset-Details</h3>
@@ -473,46 +580,45 @@ $conn->close();
                 
                 <div class="vocabulary-counter">
                     <i class="fas fa-list-ol me-1"></i>
-                    <span id="vocabCount">0</span> Vokabeln
+                    <span id="vocabCount"><?php echo count($vocabularies); ?></span> Vokabeln
                 </div>
                 
                 <div class="vocabulary-container">
                     <div id="vocabularyList">
-                        <!-- Vokabeln werden hier dynamisch hinzugefügt -->
-                        <?php if (!empty($vocabularies)): ?>
-                            <?php foreach ($vocabularies as $index => $vocab): ?>
-                            <div class="vocabulary-item" id="vocab-<?php echo $index + 1; ?>">
-                                <div class="vocabulary-number"><?php echo $index + 1; ?></div>
-                                <div class="vocabulary-inputs">
-                                    <div>
-                                        <label class="form-label">Deutsch</label>
-                                        <input type="text" class="form-control" 
-                                               name="vocabularies[<?php echo $index + 1; ?>][deutsch]" 
-                                               value="<?php echo htmlspecialchars($vocab['deutsch']); ?>" 
-                                               placeholder="z.B. Haus" 
-                                               maxlength="255" 
-                                               onchange="validateForm()">
-                                    </div>
-                                    <div>
-                                        <label class="form-label">Fremdsprache</label>
-                                        <input type="text" class="form-control" 
-                                               name="vocabularies[<?php echo $index + 1; ?>][fremdsprache]" 
-                                               value="<?php echo htmlspecialchars($vocab['fremdsprache']); ?>" 
-                                               placeholder="z.B. house" 
-                                               maxlength="255" 
-                                               onchange="validateForm()">
-                                    </div>
-                                    <div>
-                                        <button type="button" class="btn btn-remove" 
-                                                onclick="removeVocabulary(<?php echo $index + 1; ?>)" 
-                                                title="Vokabel entfernen">
-                                            <i class="fas fa-trash"></i>
-                                        </button>
-                                    </div>
+                        <!-- Bestehende Vokabeln laden -->
+                        <?php foreach ($vocabularies as $index => $vocab): ?>
+                        <div class="vocabulary-item" id="vocab-<?php echo $index + 1; ?>">
+                            <div class="vocabulary-number"><?php echo $index + 1; ?></div>
+                            <div class="vocabulary-inputs">
+                                <div>
+                                    <label class="form-label">Begriff</label>
+                                    <input type="hidden" name="vocabularies[<?php echo $index + 1; ?>][id]" value="<?php echo $vocab['id']; ?>">
+                                    <input type="text" class="form-control" 
+                                           name="vocabularies[<?php echo $index + 1; ?>][deutsch]" 
+                                           value="<?php echo htmlspecialchars($vocab['deutsch']); ?>" 
+                                           placeholder="z.B. house" 
+                                           maxlength="255" 
+                                           onchange="validateForm()">
+                                </div>
+                                <div>
+                                    <label class="form-label">Definition/Übersetzung</label>
+                                    <input type="text" class="form-control" 
+                                           name="vocabularies[<?php echo $index + 1; ?>][fremdsprache]" 
+                                           value="<?php echo htmlspecialchars($vocab['fremdsprache']); ?>" 
+                                           placeholder="z.B. Haus" 
+                                           maxlength="255" 
+                                           onchange="validateForm()">
+                                </div>
+                                <div>
+                                    <button type="button" class="btn btn-remove" 
+                                            onclick="removeVocabulary(<?php echo $index + 1; ?>)" 
+                                            title="Vokabel entfernen">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
                                 </div>
                             </div>
-                            <?php endforeach; ?>
-                        <?php endif; ?>
+                        </div>
+                        <?php endforeach; ?>
                     </div>
                     
                     <button type="button" class="btn btn-add-vocab" onclick="addVocabulary()">
@@ -523,14 +629,60 @@ $conn->close();
 
             <!-- Form Actions -->
             <div class="form-actions">
-                <a href="library.php" class="back-link">
-                    <i class="fas fa-arrow-left me-2"></i>Zurück zur Bibliothek
-                </a>
-                <button type="submit" class="btn btn-primary-custom" id="submitButton" disabled>
-                    <i class="fas fa-save me-2"></i>Lernset erstellen
-                </button>
+                <div class="action-group">
+                    <a href="library.php" class="back-link">
+                        <i class="fas fa-arrow-left me-2"></i>Zurück zur Bibliothek
+                    </a>
+                    <button type="submit" class="btn btn-primary-custom" id="submitButton">
+                        <i class="fas fa-save me-2"></i>Änderungen speichern
+                    </button>
+                </div>
             </div>
         </form>
+
+        <!-- Lösch-Bereich -->
+        <div class="delete-section">
+            <h4><i class="fas fa-exclamation-triangle me-2"></i>Lernset löschen</h4>
+            <p>
+                Das Löschen des Lernsets kann nicht rückgängig gemacht werden. 
+                Alle Vokabeln und der Lernfortschritt gehen verloren.
+            </p>
+            <button type="button" class="btn btn-danger-custom" onclick="confirmDelete()">
+                <i class="fas fa-trash me-2"></i>Lernset löschen
+            </button>
+        </div>
+    </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1" aria-labelledby="deleteModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="deleteModalLabel">
+                        <i class="fas fa-exclamation-triangle text-danger me-2"></i>Lernset löschen
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Möchtest du das Lernset <strong>"<?php echo htmlspecialchars($setName); ?>"</strong> wirklich löschen?</p>
+                    <p class="text-danger">
+                        <i class="fas fa-exclamation-circle me-1"></i>
+                        Diese Aktion kann nicht rückgängig gemacht werden!
+                    </p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                        <i class="fas fa-times me-2"></i>Abbrechen
+                    </button>
+                    <form method="POST" action="edit_set.php?id=<?php echo $lernset_id; ?>" style="display: inline;">
+                        <input type="hidden" name="action" value="delete">
+                        <button type="submit" class="btn btn-danger">
+                            <i class="fas fa-trash me-2"></i>Endgültig löschen
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Bootstrap and JavaScript -->
@@ -538,16 +690,6 @@ $conn->close();
     
     <script>
         let vocabularyCount = <?php echo count($vocabularies); ?>;
-        
-        // Beim Laden der Seite erste Vokabel hinzufügen wenn leer
-        document.addEventListener('DOMContentLoaded', function() {
-            if (vocabularyCount === 0) {
-                addVocabulary();
-            } else {
-                updateVocabCounter();
-                validateForm();
-            }
-        });
         
         function addVocabulary(deutsch = '', fremdsprache = '') {
             vocabularyCount++;
@@ -561,20 +703,21 @@ $conn->close();
                 <div class="vocabulary-number">${vocabularyCount}</div>
                 <div class="vocabulary-inputs">
                     <div>
-                        <label class="form-label">Deutsch</label>
+                        <label class="form-label">Begriff</label>
+                        <input type="hidden" name="vocabularies[${vocabularyCount}][id]" value="0">
                         <input type="text" class="form-control" 
                                name="vocabularies[${vocabularyCount}][deutsch]" 
                                value="${deutsch}" 
-                               placeholder="z.B. Haus" 
+                               placeholder="z.B. house" 
                                maxlength="255" 
                                onchange="validateForm()">
                     </div>
                     <div>
-                        <label class="form-label">Fremdsprache</label>
+                        <label class="form-label">Definition/Übersetzung</label>
                         <input type="text" class="form-control" 
                                name="vocabularies[${vocabularyCount}][fremdsprache]" 
                                value="${fremdsprache}" 
-                               placeholder="z.B. house" 
+                               placeholder="z.B. Haus" 
                                maxlength="255" 
                                onchange="validateForm()">
                     </div>
@@ -639,6 +782,11 @@ $conn->close();
             submitButton.disabled = !setName || !hasValidVocab;
         }
         
+        function confirmDelete() {
+            const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+            modal.show();
+        }
+        
         // Form-Validierung bei Eingabe
         document.getElementById('setName').addEventListener('input', validateForm);
         
@@ -665,13 +813,16 @@ $conn->close();
         });
         
         // Formular-Submission verhindern wenn nicht gültig
-        document.getElementById('createSetForm').addEventListener('submit', function(e) {
+        document.getElementById('editSetForm').addEventListener('submit', function(e) {
             const submitButton = document.getElementById('submitButton');
             if (submitButton.disabled) {
                 e.preventDefault();
                 alert('Bitte fülle mindestens den Lernset-Namen und eine vollständige Vokabel aus.');
             }
         });
+        
+        // Initial validation
+        validateForm();
     </script>
 </body>
 </html>

@@ -56,7 +56,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SprachenMeister - Anmelden</title>
+    <title>SprachMeister - Anmelden</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
@@ -118,7 +118,7 @@ $conn->close();
 <body>
     <div class="login-container">
         <div class="login-header">
-            <h2>SprachenMeister</h2>
+            <h2>SprachMeister</h2>
             <p>Melde dich an, um deine Lernreise fortzusetzen</p>
         </div>
         

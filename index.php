@@ -230,7 +230,7 @@ session_start();
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <h5>SprachenMeister</h5>
+                    <h5>SprachMeister</h5>
                     <p>Lerne Sprachen einfach und effektiv mit unserem interaktiven Sprachentrainer.</p>
                 </div>
                 <div class="col-md-3">

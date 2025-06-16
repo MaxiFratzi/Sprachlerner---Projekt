@@ -11,6 +11,15 @@ if (!isset($_SESSION['user_id'])) {
 // Benutzername aus der Session holen
 $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
 
+// Lernset-ID aus URL-Parameter holen
+$lernset_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+
+if ($lernset_id <= 0) {
+    // Zurück zur Übersicht, wenn keine gültige Lernset-ID
+    header("Location: main.php");
+    exit();
+}
+
 // Datenbankverbindung herstellen
 $servername = "localhost";
 $dbUsername = "root"; // Standardmäßig "root" bei XAMPP
@@ -24,9 +33,27 @@ if ($conn->connect_error) {
     die("Verbindung fehlgeschlagen: " . $conn->connect_error);
 }
 
-// Vokabeln aus der Datenbank abrufen
-$sql = "SELECT id, englisch, deutsch FROM woertere";
-$result = $conn->query($sql);
+// Lernset-Informationen abrufen
+$stmt = $conn->prepare("SELECT name, beschreibung FROM lernsets WHERE id = ?");
+$stmt->bind_param("i", $lernset_id);
+$stmt->execute();
+$lernset_result = $stmt->get_result();
+
+if ($lernset_result->num_rows == 0) {
+    // Lernset nicht gefunden
+    $conn->close();
+    header("Location: main.php");
+    exit();
+}
+
+$lernset = $lernset_result->fetch_assoc();
+$stmt->close();
+
+// Vokabeln aus der Datenbank für das spezifische Lernset abrufen
+$stmt = $conn->prepare("SELECT id, wort_englisch, wort_deutsch FROM vokabeln WHERE lernset_id = ? ORDER BY id");
+$stmt->bind_param("i", $lernset_id);
+$stmt->execute();
+$result = $stmt->get_result();
 
 $vocabularies = array();
 if ($result->num_rows > 0) {
@@ -35,6 +62,7 @@ if ($result->num_rows > 0) {
     }
 }
 
+$stmt->close();
 $conn->close();
 
 // Falls keine Vokabeln gefunden wurden
@@ -49,11 +77,12 @@ $message = "";
 $isCorrect = false;
 $currentWord = 0;
 $totalCorrect = 0;
-$maxWords = 48; // Gesamtanzahl der zu lernenden Wörter
+$maxWords = count($vocabularies); // Gesamtanzahl der Vokabeln in diesem Lernset
 
 // Session-Variablen zur Fortschrittsverfolgung initialisieren, falls nicht vorhanden
-if (!isset($_SESSION['schreiben_progress'])) {
-    $_SESSION['schreiben_progress'] = [
+$session_key = 'schreiben_progress_' . $lernset_id;
+if (!isset($_SESSION[$session_key])) {
+    $_SESSION[$session_key] = [
         'currentWord' => 0,
         'correctWords' => [],
         'incorrectWords' => [],
@@ -78,53 +107,53 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['answer'])) {
     
     if ($currentWordData) {
         // Überprüfen, ob die Antwort korrekt ist (Groß-/Kleinschreibung ignorieren)
-        if (strtolower($answer) === strtolower($currentWordData['deutsch'])) {
+        if (strtolower($answer) === strtolower($currentWordData['wort_deutsch'])) {
             $isCorrect = true;
             $message = "Richtig!";
             
             // Aktuelles Wort als korrekt markieren
-            if (!in_array($wordId, $_SESSION['schreiben_progress']['correctWords'])) {
-                $_SESSION['schreiben_progress']['correctWords'][] = $wordId;
-                $_SESSION['schreiben_progress']['totalCorrect']++;
+            if (!in_array($wordId, $_SESSION[$session_key]['correctWords'])) {
+                $_SESSION[$session_key]['correctWords'][] = $wordId;
+                $_SESSION[$session_key]['totalCorrect']++;
             }
             
             // Falls das Wort vorher falsch war, aus der Liste der falschen Wörter entfernen
-            $key = array_search($wordId, $_SESSION['schreiben_progress']['incorrectWords']);
+            $key = array_search($wordId, $_SESSION[$session_key]['incorrectWords']);
             if ($key !== false) {
-                array_splice($_SESSION['schreiben_progress']['incorrectWords'], $key, 1);
+                array_splice($_SESSION[$session_key]['incorrectWords'], $key, 1);
             }
             
             // Zum nächsten Wort oder zur Wiederholung eines falschen Wortes gehen
-            if (count($_SESSION['schreiben_progress']['incorrectWords']) > 0) {
+            if (count($_SESSION[$session_key]['incorrectWords']) > 0) {
                 // Wiederhole ein falsches Wort
-                $randomIncorrectIndex = array_rand($_SESSION['schreiben_progress']['incorrectWords']);
-                $_SESSION['schreiben_progress']['currentWord'] = $_SESSION['schreiben_progress']['incorrectWords'][$randomIncorrectIndex];
+                $randomIncorrectIndex = array_rand($_SESSION[$session_key]['incorrectWords']);
+                $_SESSION[$session_key]['currentWord'] = $_SESSION[$session_key]['incorrectWords'][$randomIncorrectIndex];
             } else {
                 // Zum nächsten Wort
-                $_SESSION['schreiben_progress']['currentWord'] = ($_SESSION['schreiben_progress']['currentWord'] + 1) % count($vocabularies);
+                $_SESSION[$session_key]['currentWord'] = ($_SESSION[$session_key]['currentWord'] + 1) % count($vocabularies);
             }
         } else {
             $isCorrect = false;
-            $message = "Falsch! Die richtige Antwort wäre: " . $currentWordData['deutsch'];
+            $message = "Falsch! Die richtige Antwort wäre: " . $currentWordData['wort_deutsch'];
             
             // Wort als falsch markieren, falls es noch nicht in der Liste ist
-            if (!in_array($wordId, $_SESSION['schreiben_progress']['incorrectWords'])) {
-                $_SESSION['schreiben_progress']['incorrectWords'][] = $wordId;
+            if (!in_array($wordId, $_SESSION[$session_key]['incorrectWords'])) {
+                $_SESSION[$session_key]['incorrectWords'][] = $wordId;
             }
         }
     }
     
     // Überprüfen, ob alle Wörter gelernt wurden
-    if (count($_SESSION['schreiben_progress']['correctWords']) >= min($maxWords, count($vocabularies)) && 
-        count($_SESSION['schreiben_progress']['incorrectWords']) == 0) {
-        $_SESSION['schreiben_progress']['completed'] = true;
+    if (count($_SESSION[$session_key]['correctWords']) >= $maxWords && 
+        count($_SESSION[$session_key]['incorrectWords']) == 0) {
+        $_SESSION[$session_key]['completed'] = true;
     }
 }
 
 // Aktuelles Wort bestimmen
-$currentWord = $_SESSION['schreiben_progress']['currentWord'];
-$totalCorrect = $_SESSION['schreiben_progress']['totalCorrect'];
-$completed = $_SESSION['schreiben_progress']['completed'];
+$currentWord = $_SESSION[$session_key]['currentWord'];
+$totalCorrect = $_SESSION[$session_key]['totalCorrect'];
+$completed = $_SESSION[$session_key]['completed'];
 
 // Das aktuelle Wort aus der Vokabelliste holen
 $currentWordData = isset($vocabularies[$currentWord]) ? $vocabularies[$currentWord] : null;
@@ -277,6 +306,14 @@ $currentWordData = isset($vocabularies[$currentWord]) ? $vocabularies[$currentWo
             height: 80px;
             margin: 0 auto 1.5rem;
         }
+
+        .lernset-info {
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            border-left: 4px solid var(--primary-color);
+        }
     </style>
 </head>
 <body>
@@ -316,12 +353,21 @@ $currentWordData = isset($vocabularies[$currentWord]) ? $vocabularies[$currentWo
 
     <!-- Library Content -->
     <div class="library-content">
+        <!-- Lernset Info -->
+        <div class="lernset-info">
+            <h5 class="mb-2">
+                <i class="fas fa-book-open me-2"></i>
+                <?php echo htmlspecialchars($lernset['name']); ?>
+            </h5>
+            <p class="mb-0 text-muted"><?php echo htmlspecialchars($lernset['beschreibung']); ?></p>
+        </div>
+
         <?php if ($noVocabularies): ?>
             <div class="text-center py-5">
                 <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
                 <h3>Keine Vokabeln gefunden</h3>
-                <p class="text-muted">Es wurden keine Vokabeln in der Datenbank gefunden.</p>
-                <a href="easyVoc.php" class="btn btn-primary mt-3">Zurück zur Übersicht</a>
+                <p class="text-muted">Es wurden keine Vokabeln in diesem Lernset gefunden.</p>
+                <a href="voc.php?id=<?php echo $lernset_id; ?>" class="btn btn-primary mt-3">Zurück zur Übersicht</a>
             </div>
         <?php elseif ($completed): ?>
             <!-- Completion Screen -->
@@ -334,13 +380,13 @@ $currentWordData = isset($vocabularies[$currentWord]) ? $vocabularies[$currentWo
                 <h2>Lernset abgeschlossen!</h2>
                 <p class="text-muted">Du hast alle Vokabeln in diesem Set durchgearbeitet.</p>
                 <div class="d-flex justify-content-center gap-3 mt-4">
-                    <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>">
+                    <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]) . '?id=' . $lernset_id; ?>">
                         <input type="hidden" name="reset_progress" value="1">
                         <button type="submit" class="btn btn-success">
                             <i class="fas fa-redo me-2"></i>Lernset erneut lernen
                         </button>
                     </form>
-                    <a href="easyVoc.php" class="btn btn-primary">
+                    <a href="voc.php?id=<?php echo $lernset_id; ?>" class="btn btn-primary">
                         <i class="fas fa-th-large me-2"></i>Zurück zur Übersicht
                     </a>
                 </div>
@@ -349,10 +395,10 @@ $currentWordData = isset($vocabularies[$currentWord]) ? $vocabularies[$currentWo
             <!-- Writing UI -->
             <div id="writingUI" class="writing-container">
                 <div class="english-word">
-                    <?php echo htmlspecialchars($currentWordData['englisch']); ?>
+                    <?php echo htmlspecialchars($currentWordData['wort_englisch']); ?>
                 </div>
                 
-                <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]); ?>" autocomplete="off">
+                <form method="post" action="<?php echo htmlspecialchars($_SERVER["PHP_SELF"]) . '?id=' . $lernset_id; ?>" autocomplete="off">
                     <input type="hidden" name="word_id" value="<?php echo $currentWordData['id']; ?>">
                     <input type="text" name="answer" class="answer-input" placeholder="Tippe die deutsche Übersetzung" autofocus>
                     <button type="submit" class="btn btn-primary w-100">Überprüfen</button>
@@ -369,15 +415,15 @@ $currentWordData = isset($vocabularies[$currentWord]) ? $vocabularies[$currentWo
                 <div class="progress-container">
                     <div class="d-flex justify-content-between mb-2">
                         <span>Fortschritt</span>
-                        <span><?php echo $totalCorrect; ?> von <?php echo min($maxWords, count($vocabularies)); ?> Wörtern</span>
+                        <span><?php echo $totalCorrect; ?> von <?php echo $maxWords; ?> Wörtern</span>
                     </div>
                     <div class="progress">
                         <div class="progress-bar bg-success" 
                              role="progressbar" 
-                             style="width: <?php echo ($totalCorrect / min($maxWords, count($vocabularies))) * 100; ?>%" 
+                             style="width: <?php echo ($totalCorrect / $maxWords) * 100; ?>%" 
                              aria-valuenow="<?php echo $totalCorrect; ?>" 
                              aria-valuemin="0" 
-                             aria-valuemax="<?php echo min($maxWords, count($vocabularies)); ?>">
+                             aria-valuemax="<?php echo $maxWords; ?>">
                         </div>
                     </div>
                 </div>
@@ -407,6 +453,7 @@ $currentWordData = isset($vocabularies[$currentWord]) ? $vocabularies[$currentWo
             // Create form data for Ajax request
             const formData = new FormData();
             formData.append('learned', '1');
+            formData.append('lernset_id', '<?php echo $lernset_id; ?>');
             
             // Send AJAX request to tracking script
             fetch('track_vocabulary.php', {
@@ -428,7 +475,7 @@ $currentWordData = isset($vocabularies[$currentWord]) ? $vocabularies[$currentWo
 // Das Fortschritts-Reset verarbeiten (wenn der "Lernset erneut lernen" Button geklickt wurde)
 if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_progress'])) {
     // Zurücksetzen des Fortschritts
-    $_SESSION['schreiben_progress'] = [
+    $_SESSION[$session_key] = [
         'currentWord' => 0,
         'correctWords' => [],
         'incorrectWords' => [],
@@ -437,7 +484,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && isset($_POST['reset_progress'])) {
     ];
     
     // Zur selben Seite umleiten, um POST-Daten zu entfernen
-    header("Location: " . $_SERVER['PHP_SELF']);
+    header("Location: " . $_SERVER['PHP_SELF'] . '?id=' . $lernset_id);
     exit();
 }
 ?>

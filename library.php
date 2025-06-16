@@ -8,12 +8,14 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
+// Benutzername aus der Session holen
+$username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
 $user_id = $_SESSION['user_id'];
 
 // Datenbankverbindung herstellen
 $servername = "localhost";
-$dbUsername = "root"; 
-$dbPassword = "root"; // Oder "root" je nach Konfiguration
+$dbUsername = "root";
+$dbPassword = "root"; 
 $dbName = "vokabeln"; 
 
 $conn = new mysqli($servername, $dbUsername, $dbPassword, $dbName);
@@ -27,62 +29,33 @@ if ($conn->connect_error) {
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $learning_sets = [];
 
-// Alle verfügbaren Standard-Lernsets definieren
-$standard_sets = [
-    [
-        'name' => 'Easy', 
-        'terms' => 48, 
-        'file' => 'easyVoc.php', 
-        'description' => 'Einfache Vokabeln für Anfänger',
-        'type' => 'standard'
-    ],
-    [
-        'name' => 'Medium', 
-        'terms' => 48, 
-        'file' => 'mediumVoc.php', 
-        'description' => 'Mittelschwere Vokabeln',
-        'type' => 'standard'
-    ],
-    [
-        'name' => 'Hard', 
-        'terms' => 48, 
-        'file' => 'hardVoc.php', 
-        'description' => 'Schwere Vokabeln für Fortgeschrittene',
-        'type' => 'standard'
-    ]
-];
+// Alle Lernsets aus der Datenbank laden
+$sql = "SELECT l.id, l.name, l.description, l.type, l.user_id, COUNT(v.id) as vocab_count 
+        FROM lernsets l 
+        LEFT JOIN vokabeln v ON l.id = v.lernset_id 
+        WHERE l.is_active = 1 
+        AND (l.type = 'standard' OR l.user_id = ?)
+        GROUP BY l.id 
+        ORDER BY l.type DESC, l.name ASC";
 
-// Custom Lernsets aus der Datenbank laden
-$custom_sets = [];
-$stmt = $conn->prepare("SELECT id, name, description FROM custom_sets WHERE user_id = ? ORDER BY created_at DESC");
+$stmt = $conn->prepare($sql);
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 
-while ($row = $result->fetch_assoc()) {
-    // Anzahl der Vokabeln für dieses Set zählen
-    $count_stmt = $conn->prepare("SELECT COUNT(*) as term_count FROM custom_vocabularies WHERE set_id = ?");
-    $count_stmt->bind_param("i", $row['id']);
-    $count_stmt->execute();
-    $count_result = $count_stmt->get_result();
-    $count_row = $count_result->fetch_assoc();
-    $term_count = $count_row['term_count'];
-    $count_stmt->close();
-    
-    $custom_sets[] = [
-        'id' => $row['id'],
-        'name' => $row['name'],
-        'terms' => $term_count,
-        'file' => 'custom_set.php?id=' . $row['id'],
-        'description' => $row['description'],
-        'type' => 'custom'
-    ];
+$all_sets = [];
+if ($result->num_rows > 0) {
+    while($row = $result->fetch_assoc()) {
+        $all_sets[] = [
+            'id' => $row['id'],
+            'name' => $row['name'],
+            'description' => $row['description'],
+            'type' => $row['type'],
+            'terms' => $row['vocab_count'],
+            'file' => 'lernset.php?id=' . $row['id'] // Neue einheitliche Lernset-Seite
+        ];
+    }
 }
-
-$stmt->close();
-
-// Alle Sets zusammenführen
-$all_sets = array_merge($standard_sets, $custom_sets);
 
 // Suche durchführen
 if (!empty($search_query)) {
@@ -184,10 +157,11 @@ $conn->close();
             padding: 1rem;
             margin-bottom: 1rem;
             transition: transform 0.3s;
+            cursor: pointer;
         }
         
         .library-set:hover {
-            transform: translateY(-5px);
+            transform: translateY(-2px);
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
         }
         
@@ -201,6 +175,7 @@ $conn->close();
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            margin-bottom: 0.3rem;
         }
         
         .library-set-details {
@@ -217,74 +192,10 @@ $conn->close();
         .btn-primary {
             background-color: var(--primary-color);
             border-color: var(--primary-color);
-            padding: 10px 25px;
+            padding: 8px 20px;
             font-weight: 600;
             border-radius: 50px;
-        }
-        
-        .btn-success {
-            background-color: var(--secondary-color);
-            border-color: var(--secondary-color);
-            padding: 10px 25px;
-            font-weight: 600;
-            border-radius: 50px;
-        }
-        
-        .btn-danger {
-            padding: 5px 10px;
-            font-size: 0.8rem;
-            border-radius: 20px;
-        }
-        
-        .search-bar {
-            margin-bottom: 1.5rem;
-            position: relative;
-        }
-        
-        .search-bar input {
-            padding-left: 45px;
-        }
-        
-        .search-bar .search-icon {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #666;
-            z-index: 2;
-        }
-        
-        .search-results-info {
-            margin-bottom: 20px;
-            color: #666;
             font-size: 0.9rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-        
-        .no-results {
-            text-align: center;
-            color: #666;
-            font-style: italic;
-            margin: 40px 0;
-        }
-        
-        .navbar-search {
-            position: relative;
-        }
-        
-        .navbar-search .search-icon {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #666;
-            z-index: 2;
-        }
-        
-        .navbar-search input {
-            padding-left: 45px;
         }
         
         .custom-set-badge {
@@ -306,7 +217,31 @@ $conn->close();
         .library-actions {
             display: flex;
             gap: 0.5rem;
-            align-items: center;
+        }
+        
+        .search-bar {
+            margin-bottom: 1.5rem;
+            position: relative;
+        }
+        
+        .search-bar input {
+            padding-left: 45px;
+        }
+        
+        .search-bar .search-icon {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #666;
+            z-index: 2;
+        }
+        
+        .no-results {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            margin: 40px 0;
         }
     </style>
 </head>
@@ -319,16 +254,27 @@ $conn->close();
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <form class="d-flex mx-auto mb-2 mb-lg-0 navbar-search" method="GET" action="library.php">
-                    <i class="fas fa-search search-icon"></i>
-                    <input class="form-control me-2" type="search" name="search" 
-                           placeholder="Nach Lernsets suchen..." 
-                           value="<?php echo htmlspecialchars($search_query); ?>"
-                           style="width: 300px; border-radius: 20px;">
-                    <button class="btn btn-outline-primary" type="submit" style="border-radius: 20px;">
-                        <i class="fas fa-search"></i>
-                    </button>
-                </form>
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="main.php">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="library.php">Bibliothek</a>
+                    </li>
+                </ul>
+                <div class="ms-auto">
+                    <div class="dropdown">
+                        <div class="user-avatar dropdown-toggle" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="fas fa-user"></i>
+                        </div>
+                        <ul class="dropdown-menu dropdown-menu-end" aria-labelledby="userDropdown">
+                            <li><span class="dropdown-item-text">Angemeldet als <strong><?php echo htmlspecialchars($username); ?></strong></span></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="account.php"><i class="fas fa-user-cog me-2"></i>Mein Account</a></li>
+                            <li><a class="dropdown-item" href="logout.php"><i class="fas fa-sign-out-alt me-2"></i>Ausloggen</a></li>
+                        </ul>
+                    </div>
+                </div>
             </div>
         </div>
     </nav>
@@ -352,20 +298,20 @@ $conn->close();
 
     <!-- Library Content -->
     <div class="library-content">
-        <!-- Interne Suchleiste -->
+        <!-- Suchleiste -->
         <div class="search-bar">
             <form method="GET" action="library.php">
                 <i class="fas fa-search search-icon"></i>
                 <input type="text" class="form-control" name="search" 
-                       placeholder="Karteikarten suchen..." 
+                       placeholder="Lernsets suchen..." 
                        value="<?php echo htmlspecialchars($search_query); ?>"
                        style="border-radius: 20px;">
             </form>
         </div>
 
         <?php if (!empty($search_query)): ?>
-            <div class="search-results-info">
-                <span>
+            <div class="search-results-info mb-3">
+                <span class="text-muted">
                     <?php echo count($learning_sets); ?> Ergebnis(se) gefunden für "<?php echo htmlspecialchars($search_query); ?>"
                 </span>
                 <a href="library.php" class="text-decoration-none">
@@ -377,13 +323,13 @@ $conn->close();
         <?php if (empty($learning_sets)): ?>
             <div class="no-results">
                 <i class="fas fa-search fa-2x mb-3"></i>
-                <p>Keine Lernsets gefunden für "<?php echo htmlspecialchars($search_query); ?>"</p>
+                <p>Keine Lernsets gefunden<?php if (!empty($search_query)): ?> für "<?php echo htmlspecialchars($search_query); ?>"<?php endif; ?></p>
                 <a href="library.php" class="btn btn-outline-primary">Alle Sets anzeigen</a>
             </div>
         <?php else: ?>
             <h4 class="mb-3">Alle Lernsets</h4>
             <?php foreach ($learning_sets as $set): ?>
-                <div class="library-set">
+                <div class="library-set" onclick="window.location='<?php echo htmlspecialchars($set['file']); ?>'">
                     <div class="library-set-info">
                         <div class="library-set-title">
                             <?php echo htmlspecialchars($set['name']); ?>
@@ -397,71 +343,35 @@ $conn->close();
                         <div class="library-set-description"><?php echo htmlspecialchars($set['description']); ?></div>
                     </div>
                     <div class="library-actions">
-                        <a href="<?php echo htmlspecialchars($set['file']); ?>" class="btn btn-primary">Lernen</a>
+                        <a href="<?php echo htmlspecialchars($set['file']); ?>" class="btn btn-primary" onclick="event.stopPropagation();">
+                            <i class="fas fa-book-open me-1"></i> Lernen
+                        </a>
                         <?php if ($set['type'] === 'custom'): ?>
-                            <a href="edit_set.php?id=<?php echo $set['id']; ?>" class="btn btn-outline-secondary btn-sm">
+                            <a href="edit_set.php?id=<?php echo $set['id']; ?>" class="btn btn-outline-primary btn-sm" onclick="event.stopPropagation();">
                                 <i class="fas fa-edit"></i>
-                            </a>
-                            <a href="delete_set.php?id=<?php echo $set['id']; ?>" 
-                               class="btn btn-outline-danger btn-sm" 
-                               onclick="return confirm('Möchten Sie dieses Lernset wirklich löschen?')">
-                                <i class="fas fa-trash"></i>
                             </a>
                         <?php endif; ?>
                     </div>
                 </div>
             <?php endforeach; ?>
         <?php endif; ?>
-    </div>
-
-    <!-- Footer -->
-    <footer class="bg-light py-4 mt-5">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6">
-                    <h5>SprachMeister</h5>
-                    <p>Lerne Sprachen einfach und effektiv mit unserem interaktiven Sprachentrainer.</p>
-                </div>
-                <div class="col-md-3">
-                    <h5>Links</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="#" class="text-decoration-none">Über uns</a></li>
-                        <li><a href="#" class="text-decoration-none">Hilfe & FAQ</a></li>
-                        <li><a href="#" class="text-decoration-none">Datenschutz</a></li>
-                    </ul>
-                </div>
-                <div class="col-md-3">
-                    <h5>Kontakt</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="#" class="text-decoration-none">Kontaktformular</a></li>
-                        <li><a href="#" class="text-decoration-none">Support</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="text-center mt-4">
-                <p>&copy; 2025 SprachenMeister. Alle Rechte vorbehalten.</p>
-            </div>
+        
+        <!-- Button zum Erstellen eines neuen Lernsets -->
+        <div class="text-center mt-4">
+            <a href="create_set.php" class="btn btn-success">
+                <i class="fas fa-plus me-2"></i> Neues Lernset erstellen
+            </a>
         </div>
-    </footer>
+    </div>
 
     <!-- Bootstrap and JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
         // Auto-submit bei Enter-Taste
-        document.querySelectorAll('input[name="search"]').forEach(function(input) {
-            input.addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    this.closest('form').submit();
-                }
-            });
-        });
-        
-        // Suchfeld fokussieren mit Strg+K
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'k') {
-                e.preventDefault();
-                document.querySelector('input[name="search"]').focus();
+        document.querySelector('input[name="search"]').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                this.closest('form').submit();
             }
         });
     </script>

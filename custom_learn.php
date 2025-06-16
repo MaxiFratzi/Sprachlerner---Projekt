@@ -227,7 +227,7 @@ if (empty($vocab_data)) {
                 <div class="completion-icon">
                     <i class="fas fa-trophy"></i>
                 </div>
-                <h2>Glückwunsch!</h2>
+                <h2>GlÃ¼ckwunsch!</h2>
                 <p>Sie haben alle Karten von "<?php echo htmlspecialchars($set_name); ?>" durchgelernt!</p>
                 <button class="btn btn-primary" onclick="restartLearning()">
                     <i class="fas fa-redo"></i> Nochmal lernen
