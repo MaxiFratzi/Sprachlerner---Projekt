@@ -29,13 +29,63 @@ if ($conn->connect_error) {
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
 $learning_sets = [];
 
-// Alle verfügbaren Lernsets definieren (du kannst diese auch aus der Datenbank laden)
-$all_sets = [
-    ['name' => 'Easy', 'terms' => 48, 'file' => 'easyVoc.php', 'description' => 'Einfache Vokabeln für Anfänger'],
-    ['name' => 'Medium', 'terms' => 48, 'file' => 'mediumVoc.php', 'description' => 'Mittelschwere Vokabeln'],
-    ['name' => 'Hard', 'terms' => 48, 'file' => 'hardVoc.php', 'description' => 'Schwere Vokabeln für Fortgeschrittene'],
-    // Hier kannst du weitere Sets hinzufügen
+// Alle verfügbaren Lernsets aus der Datenbank laden
+$sets_query = "SELECT id, name, description, user_id FROM custom_sets ORDER BY created_at DESC";
+$sets_result = $conn->query($sets_query);
+
+$all_sets = [];
+
+// Dynamische Sets aus der Datenbank hinzufügen
+if ($sets_result->num_rows > 0) {
+    while ($row = $sets_result->fetch_assoc()) {
+        // Anzahl der Begriffe in diesem Set zählen
+        $count_query = "SELECT COUNT(*) as term_count FROM custom_vocabularies WHERE set_id = ?";
+        $count_stmt = $conn->prepare($count_query);
+        $count_stmt->bind_param("i", $row['id']);
+        $count_stmt->execute();
+        $count_result = $count_stmt->get_result();
+        $term_count = $count_result->fetch_assoc()['term_count'];
+        $count_stmt->close();
+        
+        // Ersteller-Info hinzufügen
+        $creator_info = "";
+        if ($row['user_id'] == $user_id) {
+            $creator_info = " (Eigenes Set)";
+        } else {
+            // Optional: Benutzername des Erstellers anzeigen
+            $creator_query = "SELECT username FROM users WHERE id = ?";
+            $creator_stmt = $conn->prepare($creator_query);
+            $creator_stmt->bind_param("i", $row['user_id']);
+            $creator_stmt->execute();
+            $creator_result = $creator_stmt->get_result();
+            if ($creator_result->num_rows > 0) {
+                $creator = $creator_result->fetch_assoc();
+                $creator_info = " (von " . htmlspecialchars($creator['username']) . ")";
+            }
+            $creator_stmt->close();
+        }
+        
+        $all_sets[] = [
+            'id' => $row['id'],
+            'name' => $row['name'],
+            'terms' => $term_count,
+            'file' => 'custom_set.php?id=' . $row['id'],
+            'description' => $row['description'] . $creator_info,
+            'is_custom' => true,
+            'created_by' => $row['user_id']
+        ];
+    }
+}
+
+// Statische Sets hinzufügen (falls gewünscht)
+$static_sets = [
+    ['id' => null, 'name' => 'Easy', 'terms' => 48, 'file' => 'easyVoc.php', 'description' => 'Einfache Vokabeln für Anfänger', 'is_custom' => false],
+    ['id' => null, 'name' => 'Medium', 'terms' => 48, 'file' => 'mediumVoc.php', 'description' => 'Mittelschwere Vokabeln', 'is_custom' => false],
+    ['id' => null, 'name' => 'Hard', 'terms' => 48, 'file' => 'hardVoc.php', 'description' => 'Schwere Vokabeln für Fortgeschrittene', 'is_custom' => false],
 ];
+
+// Statische Sets zu allen Sets hinzufügen
+$all_sets = array_merge($all_sets, $static_sets);
 
 // Suche durchführen
 if (!empty($search_query)) {
@@ -135,6 +185,7 @@ $conn->close();
     <!-- Fontawesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
+        /* Alle bisherigen Styles bleiben gleich */
         :root {
             --primary-color: #4255ff;
             --secondary-color: #ff8a00;
@@ -295,10 +346,16 @@ $conn->close();
             padding: 15px;
             border-left: 5px solid var(--primary-color);
             transition: transform 0.3s;
+            position: relative;
         }
         
         .set-card:hover {
             transform: translateY(-5px);
+        }
+        
+        .set-card.custom-set {
+            background-color: #f0fff0;
+            border-left-color: #28a745;
         }
         
         .set-card h4 {
@@ -356,6 +413,36 @@ $conn->close();
             margin-bottom: 20px;
             color: #666;
             font-size: 0.9rem;
+        }
+        
+        .custom-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background-color: #28a745;
+            color: white;
+            font-size: 0.7rem;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+        
+        .delete-btn {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: #dc3545;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 25px;
+            height: 25px;
+            font-size: 0.7rem;
+            cursor: pointer;
+            display: none;
+        }
+        
+        .set-card.custom-set:hover .delete-btn {
+            display: block;
         }
     </style>
 </head>
@@ -464,7 +551,16 @@ $conn->close();
             <?php else: ?>
                 <div class="set-grid">
                     <?php foreach ($learning_sets as $set): ?>
-                        <div class="set-card">
+                        <div class="set-card <?php echo $set['is_custom'] ? 'custom-set' : ''; ?>">
+                            <?php if ($set['is_custom']): ?>
+                                <span class="custom-badge">Eigenes</span>
+                                <?php if ($set['created_by'] == $user_id): ?>
+                                    <button class="delete-btn" onclick="deleteSet(<?php echo $set['id']; ?>)" title="Set löschen">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                <?php endif; ?>
+                            <?php endif; ?>
+                            
                             <h4><?php echo htmlspecialchars($set['name']); ?></h4>
                             <p><?php echo $set['terms']; ?> Begriffe</p>
                             <div class="description"><?php echo htmlspecialchars($set['description']); ?></div>
@@ -496,6 +592,32 @@ $conn->close();
                 document.querySelector('input[name="search"]').focus();
             }
         });
+        
+        // Funktion zum Löschen von Sets
+        function deleteSet(setId) {
+            if (confirm('Möchten Sie dieses Lernset wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.')) {
+                // AJAX-Request zum Löschen
+                fetch('delete_set.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: 'set_id=' + setId
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload(); // Seite neu laden
+                    } else {
+                        alert('Fehler beim Löschen: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Ein Fehler ist aufgetreten.');
+                });
+            }
+        }
     </script>
 </body>
 </html>

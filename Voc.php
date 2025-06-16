@@ -353,7 +353,7 @@ foreach ($lernsets as $lernset) {
         <div class="container">
             <div class="row">
                 <div class="col-md-6">
-                    <h5>SprachMeister</h5>
+                    <h5>SprachenMeister</h5>
                     <p>Lerne Sprachen einfach und effektiv mit unserem interaktiven Sprachentrainer.</p>
                 </div>
                 <div class="col-md-3">
@@ -373,7 +373,7 @@ foreach ($lernsets as $lernset) {
                 </div>
             </div>
             <div class="text-center mt-4">
-                <p>&copy; 2025 SprachMeister. Alle Rechte vorbehalten.</p>
+                <p>&copy; 2025 SprachenMeister. Alle Rechte vorbehalten.</p>
             </div>
         </div>
     </footer>

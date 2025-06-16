@@ -2,11 +2,26 @@
 // Start Session
 session_start();
 
-// Prüfen, ob Benutzer eingeloggt ist (optional, je nach Ihren Anforderungen)
-// if (!isset($_SESSION['user_id'])) {
-//     header("Location: login.php");
-//     exit();
-// }
+// Prüfen, ob Benutzer eingeloggt ist
+if (!isset($_SESSION['user_id'])) {
+    header("Location: login.php");
+    exit();
+}
+
+$user_id = $_SESSION['user_id'];
+
+// Datenbankverbindung herstellen
+$servername = "localhost";
+$dbUsername = "root"; 
+$dbPassword = "root"; // Oder "root" je nach Konfiguration
+$dbName = "vokabeln"; 
+
+$conn = new mysqli($servername, $dbUsername, $dbPassword, $dbName);
+
+// Verbindung überprüfen
+if ($conn->connect_error) {
+    die("Verbindung fehlgeschlagen: " . $conn->connect_error);
+}
 
 // Suchfunktion
 $search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
@@ -37,27 +52,34 @@ $standard_sets = [
     ]
 ];
 
-// Custom Lernsets laden (hier sollten Sie Ihre Datenbank-Abfrage einfügen)
+// Custom Lernsets aus der Datenbank laden
 $custom_sets = [];
-// Beispiel für Custom Sets - ersetzen Sie dies durch Ihre Datenbankabfrage
-/*
-$custom_sets = [
-    [
-        'name' => 'Mein Spanisch Set',
-        'terms' => 25,
-        'file' => 'custom_set.php?id=1',
-        'description' => 'Selbst erstelltes Spanisch-Vokabular',
+$stmt = $conn->prepare("SELECT id, name, description FROM custom_sets WHERE user_id = ? ORDER BY created_at DESC");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+
+while ($row = $result->fetch_assoc()) {
+    // Anzahl der Vokabeln für dieses Set zählen
+    $count_stmt = $conn->prepare("SELECT COUNT(*) as term_count FROM custom_vocabularies WHERE set_id = ?");
+    $count_stmt->bind_param("i", $row['id']);
+    $count_stmt->execute();
+    $count_result = $count_stmt->get_result();
+    $count_row = $count_result->fetch_assoc();
+    $term_count = $count_row['term_count'];
+    $count_stmt->close();
+    
+    $custom_sets[] = [
+        'id' => $row['id'],
+        'name' => $row['name'],
+        'terms' => $term_count,
+        'file' => 'custom_set.php?id=' . $row['id'],
+        'description' => $row['description'],
         'type' => 'custom'
-    ],
-    [
-        'name' => 'Französisch Basics',
-        'terms' => 30,
-        'file' => 'custom_set.php?id=2',
-        'description' => 'Grundlegende französische Begriffe',
-        'type' => 'custom'
-    ]
-];
-*/
+    ];
+}
+
+$stmt->close();
 
 // Alle Sets zusammenführen
 $all_sets = array_merge($standard_sets, $custom_sets);
@@ -73,6 +95,8 @@ if (!empty($search_query)) {
 } else {
     $learning_sets = $all_sets;
 }
+
+$conn->close();
 ?>
 
 <!DOCTYPE html>
@@ -206,6 +230,12 @@ if (!empty($search_query)) {
             border-radius: 50px;
         }
         
+        .btn-danger {
+            padding: 5px 10px;
+            font-size: 0.8rem;
+            border-radius: 20px;
+        }
+        
         .search-bar {
             margin-bottom: 1.5rem;
             position: relative;
@@ -257,8 +287,6 @@ if (!empty($search_query)) {
             padding-left: 45px;
         }
         
-
-        
         .custom-set-badge {
             background-color: var(--secondary-color);
             color: white;
@@ -278,6 +306,7 @@ if (!empty($search_query)) {
         .library-actions {
             display: flex;
             gap: 0.5rem;
+            align-items: center;
         }
     </style>
 </head>
@@ -304,7 +333,7 @@ if (!empty($search_query)) {
         </div>
     </nav>
 
-            <!-- Library Header -->
+    <!-- Library Header -->
     <div class="library-header">
         <h1>Deine Bibliothek</h1>
         <div class="library-tabs">
@@ -333,8 +362,6 @@ if (!empty($search_query)) {
                        style="border-radius: 20px;">
             </form>
         </div>
-
-
 
         <?php if (!empty($search_query)): ?>
             <div class="search-results-info">
@@ -370,10 +397,16 @@ if (!empty($search_query)) {
                         <div class="library-set-description"><?php echo htmlspecialchars($set['description']); ?></div>
                     </div>
                     <div class="library-actions">
+                        <a href="<?php echo htmlspecialchars($set['file']); ?>" class="btn btn-primary">Lernen</a>
                         <?php if ($set['type'] === 'custom'): ?>
-                            <a href="custom_set.php?id=<?php echo urlencode(basename($set['file'], '.php')); ?>" class="btn btn-primary">Lernen</a>
-                        <?php else: ?>
-                            <a href="<?php echo htmlspecialchars($set['file']); ?>" class="btn btn-primary">Lernen</a>
+                            <a href="edit_set.php?id=<?php echo $set['id']; ?>" class="btn btn-outline-secondary btn-sm">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <a href="delete_set.php?id=<?php echo $set['id']; ?>" 
+                               class="btn btn-outline-danger btn-sm" 
+                               onclick="return confirm('Möchten Sie dieses Lernset wirklich löschen?')">
+                                <i class="fas fa-trash"></i>
+                            </a>
                         <?php endif; ?>
                     </div>
                 </div>
