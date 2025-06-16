@@ -1,5 +1,5 @@
 <?php
-// filepath: c:\xampp\htdocs\3BHWII\Sprachlerner - Projekt\karteikarten.php
+// filepath: c:\xampp\htdocs\3BHWII\Sprachlerner - Projekt\lernset.php
 // Start Session
 session_start();
 
@@ -17,15 +17,13 @@ if (!isset($_GET['id']) || empty($_GET['id'])) {
 
 $lernset_id = intval($_GET['id']);
 $user_id = $_SESSION['user_id'];
-
-// Benutzername aus der Session holen
 $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
 
 // Datenbankverbindung herstellen
 $servername = "localhost";
 $dbUsername = "root";
 $dbPassword = "root"; 
-$dbName = "vokabeln";
+$dbName = "vokabeln"; 
 
 $conn = new mysqli($servername, $dbUsername, $dbPassword, $dbName);
 
@@ -49,25 +47,15 @@ if ($result->num_rows === 0) {
 $lernset = $result->fetch_assoc();
 
 // Vokabeln aus der Datenbank laden
-$vocab_sql = "SELECT * FROM vokabeln WHERE lernset_id = ? ORDER BY RAND()";
+$vocab_sql = "SELECT * FROM vokabeln WHERE lernset_id = ? ORDER BY id ASC";
 $vocab_stmt = $conn->prepare($vocab_sql);
 $vocab_stmt->bind_param("i", $lernset_id);
 $vocab_stmt->execute();
 $vocab_result = $vocab_stmt->get_result();
 
 $vocabularies = [];
-$noVocabularies = false;
-
-if ($vocab_result->num_rows > 0) {
-    while($row = $vocab_result->fetch_assoc()) {
-        $vocabularies[] = [
-            'id' => $row['id'],
-            'deutsch' => $row['deutsch'],
-            'fremdsprache' => $row['fremdsprache']
-        ];
-    }
-} else {
-    $noVocabularies = true;
+while($row = $vocab_result->fetch_assoc()) {
+    $vocabularies[] = $row;
 }
 
 $conn->close();
@@ -78,7 +66,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SprachenMeister - Karteikarten: <?php echo htmlspecialchars($lernset['name']); ?></title>
+    <title>SprachenMeister - <?php echo htmlspecialchars($lernset['name']); ?></title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Fontawesome Icons -->
@@ -90,18 +78,15 @@ $conn->close();
             --success-color: #28a745;
             --info-color: #17a2b8;
             --warning-color: #ffc107;
-            --danger-color: #dc3545;
         }
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background-color: #f8f9fa;
-            min-height: 100vh;
         }
         
         .navbar {
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            background-color: white !important;
         }
         
         .navbar-brand {
@@ -145,250 +130,195 @@ $conn->close();
             font-size: 1.1rem;
         }
         
-        .flashcard-container {
-            max-width: 800px;
-            margin: 0 auto;
-            padding: 2rem;
-        }
-        
-        .progress-card {
+        .lernset-info {
             background-color: white;
             border-radius: 15px;
-            padding: 1.5rem;
+            padding: 2rem;
             margin-bottom: 2rem;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            text-align: center;
         }
         
-        .progress-info {
-            color: var(--primary-color);
-            font-weight: 600;
-            font-size: 1.1rem;
-        }
-        
-        .flashcard {
-            width: 100%;
-            height: 400px;
-            background-color: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-            cursor: pointer;
-            transition: transform 0.6s;
-            transform-style: preserve-3d;
-            position: relative;
-            margin-bottom: 2rem;
-        }
-        
-        .flashcard:hover {
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.2);
-        }
-        
-        .flashcard.flipped {
-            transform: rotateY(180deg);
-        }
-        
-        .flashcard-front,
-        .flashcard-back {
-            position: absolute;
-            width: 100%;
-            height: 100%;
-            backface-visibility: hidden;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 3rem;
-            box-sizing: border-box;
-            border: 3px solid #e9ecef;
-        }
-        
-        .flashcard-front {
-            background-color: white;
-            color: var(--primary-color);
-        }
-        
-        .flashcard-back {
-            background-color: #f8f9fa;
-            color: var(--secondary-color);
-            transform: rotateY(180deg);
-            border-color: var(--secondary-color);
-        }
-        
-        .flashcard-text {
-            font-size: 2.5rem;
-            font-weight: 600;
-            text-align: center;
-            word-wrap: break-word;
-            line-height: 1.3;
-        }
-        
-        .card-type {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            background-color: var(--primary-color);
-            color: white;
+        .lernset-badge {
             padding: 0.5rem 1rem;
             border-radius: 20px;
             font-size: 0.9rem;
             font-weight: 600;
+            color: white;
+            display: inline-block;
+            margin-bottom: 1rem;
         }
         
-        .flashcard-back .card-type {
-            background-color: var(--secondary-color);
-        }
-        
-        .flashcard-controls {
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-        
-        .control-btn {
+        .lernset-badge.standard {
             background-color: var(--primary-color);
-            border: none;
-            color: white;
-            border-radius: 10px;
-            padding: 1rem 2rem;
-            font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
         }
         
-        .control-btn:hover {
-            background-color: #3346e6;
-            transform: translateY(-2px);
-            color: white;
-            text-decoration: none;
-        }
-        
-        .control-btn:disabled {
-            background-color: #6c757d;
-            cursor: not-allowed;
-            transform: none;
-        }
-        
-        .control-btn.secondary {
+        .lernset-badge.custom {
             background-color: var(--secondary-color);
         }
         
-        .control-btn.secondary:hover {
-            background-color: #e67e00;
+        .learning-options {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
         }
         
-        .flip-hint {
-            text-align: center;
-            color: #666;
-            margin-bottom: 2rem;
-            font-size: 1rem;
+        .learning-card {
             background-color: white;
-            padding: 1rem;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        
-        .completion-screen {
-            display: none;
+            border-radius: 15px;
+            padding: 2rem;
             text-align: center;
-            background-color: white;
-            border-radius: 20px;
-            padding: 4rem 2rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
         }
         
-        .completion-screen i {
-            font-size: 4rem;
-            color: var(--success-color);
+        .learning-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .learning-card .icon {
+            font-size: 3rem;
             margin-bottom: 1rem;
         }
         
-        .completion-screen h2 {
+        .learning-card.karteikarten .icon {
             color: var(--primary-color);
-            font-size: 2.5rem;
-            margin-bottom: 1rem;
         }
         
-        .completion-screen p {
-            color: #666;
-            font-size: 1.2rem;
-            margin-bottom: 2rem;
+        .learning-card.schreiben .icon {
+            color: var(--info-color);
         }
         
-        .completion-actions {
-            display: flex;
-            justify-content: center;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-        
-        .no-vocab-message {
-            text-align: center;
-            background-color: white;
-            border-radius: 20px;
-            padding: 4rem 2rem;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
-        }
-        
-        .no-vocab-message i {
-            font-size: 4rem;
+        .learning-card.test .icon {
             color: var(--warning-color);
-            margin-bottom: 1rem;
         }
         
-        .no-vocab-message h2 {
+        .learning-card h3 {
             color: var(--primary-color);
             margin-bottom: 1rem;
         }
         
-        .no-vocab-message p {
+        .learning-card p {
             color: #666;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .learning-card .btn {
+            width: 100%;
+        }
+        
+        .vocabulary-preview {
+            background-color: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .vocabulary-preview h3 {
+            color: var(--primary-color);
+            margin-bottom: 1.5rem;
+        }
+        
+        .vocab-list {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .vocab-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            transition: background-color 0.3s ease;
+        }
+        
+        .vocab-item:hover {
+            background-color: #e9ecef;
+        }
+        
+        .vocab-deutsch {
+            font-weight: 600;
+            color: var(--primary-color);
+        }
+        
+        .vocab-fremdsprache {
+            color: #666;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #666;
+        }
+        
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
         }
         
         .back-actions {
-            background-color: white;
-            border-radius: 15px;
-            padding: 1.5rem;
             margin-bottom: 2rem;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            text-align: center;
+        }
+        
+        .btn-primary-custom {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 0.8rem 2rem;
+        }
+        
+        .btn-primary-custom:hover {
+            background-color: #3346e6;
+            border-color: #3346e6;
+            color: white;
+        }
+        
+        .btn-secondary-custom {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+            color: white;
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 0.8rem 2rem;
+        }
+        
+        .btn-secondary-custom:hover {
+            background-color: #e67e00;
+            border-color: #e67e00;
+            color: white;
         }
         
         @media (max-width: 768px) {
-            .flashcard {
-                height: 300px;
+            .learning-options {
+                grid-template-columns: 1fr;
+                gap: 1rem;
             }
             
-            .flashcard-text {
-                font-size: 1.8rem;
+            .page-header h1 {
+                font-size: 2rem;
             }
             
-            .flashcard-controls {
-                flex-direction: column;
-                align-items: center;
-            }
-            
-            .completion-actions {
-                flex-direction: column;
-                align-items: center;
-            }
-            
-            .flashcard-front,
-            .flashcard-back {
-                padding: 2rem;
+            .back-actions {
+                text-align: center;
             }
         }
     </style>
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light">
+    <nav class="navbar navbar-expand-lg navbar-light bg-white">
         <div class="container">
             <a class="navbar-brand" href="main.php">SprachenMeister</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -423,214 +353,104 @@ $conn->close();
     <!-- Page Header -->
     <div class="page-header">
         <div class="container text-center">
-            <h1><i class="fas fa-clone me-3"></i>Karteikarten</h1>
-            <div class="subtitle"><?php echo htmlspecialchars($lernset['name']); ?></div>
+            <h1><i class="fas fa-book me-3"></i><?php echo htmlspecialchars($lernset['name']); ?></h1>
+            <div class="subtitle"><?php echo count($vocabularies); ?> Vokabeln • <?php echo htmlspecialchars($lernset['description'] ?: 'Keine Beschreibung verfügbar'); ?></div>
         </div>
     </div>
 
     <div class="container">
-        <div class="flashcard-container">
-            <!-- Back Navigation -->
-            <div class="back-actions">
-                <a href="lernset.php?id=<?php echo $lernset_id; ?>" class="control-btn">
-                    <i class="fas fa-arrow-left"></i> Zurück zum Lernset
+        <!-- Back Navigation -->
+        <div class="back-actions">
+            <a href="library.php" class="btn btn-outline-primary">
+                <i class="fas fa-arrow-left me-2"></i>Zurück zur Bibliothek
+            </a>
+            <?php if ($lernset['type'] === 'custom' && $lernset['user_id'] == $user_id): ?>
+                <a href="edit_set.php?id=<?php echo $lernset_id; ?>" class="btn btn-secondary-custom ms-2">
+                    <i class="fas fa-edit me-2"></i>Bearbeiten
                 </a>
-                <a href="library.php" class="control-btn secondary">
-                    <i class="fas fa-book"></i> Zur Bibliothek
-                </a>
-            </div>
+            <?php endif; ?>
+        </div>
 
-            <?php if ($noVocabularies): ?>
-                <!-- Keine Vokabeln vorhanden -->
-                <div class="no-vocab-message">
+        <!-- Lernset Info -->
+        <div class="lernset-info">
+            <span class="lernset-badge <?php echo $lernset['type']; ?>">
+                <?php echo $lernset['type'] === 'custom' ? 'Eigenes Lernset' : 'Standard-Lernset'; ?>
+            </span>
+            <h2><?php echo htmlspecialchars($lernset['name']); ?></h2>
+            <p class="mb-2"><?php echo htmlspecialchars($lernset['description'] ?: 'Keine Beschreibung verfügbar'); ?></p>
+            <small class="text-muted">
+                <i class="fas fa-calendar me-1"></i>
+                Erstellt am <?php echo date('d.m.Y', strtotime($lernset['created_at'])); ?>
+            </small>
+        </div>
+
+        <?php if (empty($vocabularies)): ?>
+            <!-- Keine Vokabeln vorhanden -->
+            <div class="vocabulary-preview">
+                <div class="empty-state">
                     <i class="fas fa-exclamation-triangle"></i>
-                    <h2>Keine Vokabeln gefunden</h2>
+                    <h3>Keine Vokabeln vorhanden</h3>
                     <p>In diesem Lernset sind noch keine Vokabeln vorhanden.</p>
                     <?php if ($lernset['type'] === 'custom' && $lernset['user_id'] == $user_id): ?>
-                        <a href="edit_set.php?id=<?php echo $lernset_id; ?>" class="control-btn">
-                            <i class="fas fa-plus"></i> Vokabeln hinzufügen
+                        <a href="edit_set.php?id=<?php echo $lernset_id; ?>" class="btn btn-primary-custom">
+                            <i class="fas fa-plus me-2"></i>Vokabeln hinzufügen
                         </a>
                     <?php endif; ?>
                 </div>
-            <?php else: ?>
-                <!-- Progress Info -->
-                <div class="progress-card">
-                    <div class="progress-info">
-                        Karte <span id="currentCard">1</span> von <?php echo count($vocabularies); ?>
+            </div>
+        <?php else: ?>
+            <!-- Lernoptionen -->
+            <div class="learning-options">
+                <a href="karteikarten.php?id=<?php echo $lernset_id; ?>" class="learning-card karteikarten">
+                    <div class="icon">
+                        <i class="fas fa-clone"></i>
                     </div>
-                </div>
+                    <h3>Karteikarten</h3>
+                    <p>Lerne mit interaktiven Karteikarten in beide Richtungen</p>
+                    <button class="btn btn-primary-custom">
+                        <i class="fas fa-play me-2"></i>Starten
+                    </button>
+                </a>
                 
-                <!-- Karteikarten Interface -->
-                <div id="flashcardUI">
-                    <div class="flashcard" id="flashcard">
-                        <div class="flashcard-front">
-                            <div class="card-type">Deutsch</div>
-                            <div class="flashcard-text" id="frontText">
-                                <!-- Wird durch JavaScript gefüllt -->
-                            </div>
-                        </div>
-                        <div class="flashcard-back">
-                            <div class="card-type">Fremdsprache</div>
-                            <div class="flashcard-text" id="backText">
-                                <!-- Wird durch JavaScript gefüllt -->
-                            </div>
-                        </div>
+                <a href="schreiben.php?id=<?php echo $lernset_id; ?>" class="learning-card schreiben">
+                    <div class="icon">
+                        <i class="fas fa-keyboard"></i>
                     </div>
-                    
-                    <div class="flip-hint">
-                        <i class="fas fa-hand-pointer me-2"></i>
-                        Klicke auf die Karte, um sie umzudrehen
-                        <br><small class="text-muted">Verwende auch die Pfeiltasten ← → und Leertaste</small>
-                    </div>
-                    
-                    <div class="flashcard-controls">
-                        <button class="control-btn" id="prevButton">
-                            <i class="fas fa-chevron-left"></i> Vorherige
-                        </button>
-                        <button class="control-btn secondary" id="nextButton">
-                            Nächste <i class="fas fa-chevron-right"></i>
-                        </button>
-                    </div>
-                </div>
+                    <h3>Schreibübung</h3>
+                    <p>Übe durch Tippen der korrekten Übersetzungen</p>
+                    <button class="btn btn-primary-custom">
+                        <i class="fas fa-play me-2"></i>Starten
+                    </button>
+                </a>
                 
-                <!-- Abschlussbildschirm -->
-                <div class="completion-screen" id="completionScreen">
-                    <i class="fas fa-trophy"></i>
-                    <h2>Gratulation!</h2>
-                    <p>Du hast alle <?php echo count($vocabularies); ?> Karteikarten durchgeschaut!</p>
-                    <div class="completion-actions">
-                        <button class="control-btn" id="restartButton">
-                            <i class="fas fa-redo"></i> Nochmal lernen
-                        </button>
-                        <a href="lernset.php?id=<?php echo $lernset_id; ?>" class="control-btn">
-                            <i class="fas fa-arrow-left"></i> Zurück zum Lernset
-                        </a>
-                        <a href="library.php" class="control-btn secondary">
-                            <i class="fas fa-book"></i> Zur Bibliothek
-                        </a>
+                <a href="test.php?id=<?php echo $lernset_id; ?>" class="learning-card test">
+                    <div class="icon">
+                        <i class="fas fa-tasks"></i>
                     </div>
+                    <h3>Test</h3>
+                    <p>Teste dein Wissen mit Multiple-Choice Fragen</p>
+                    <button class="btn btn-primary-custom">
+                        <i class="fas fa-play me-2"></i>Starten
+                    </button>
+                </a>
+            </div>
+
+            <!-- Vokabel-Vorschau -->
+            <div class="vocabulary-preview">
+                <h3><i class="fas fa-list me-2"></i>Vokabeln (<?php echo count($vocabularies); ?>)</h3>
+                <div class="vocab-list">
+                    <?php foreach ($vocabularies as $vocab): ?>
+                        <div class="vocab-item">
+                            <span class="vocab-deutsch"><?php echo htmlspecialchars($vocab['deutsch']); ?></span>
+                            <span class="vocab-fremdsprache"><?php echo htmlspecialchars($vocab['fremdsprache']); ?></span>
+                        </div>
+                    <?php endforeach; ?>
                 </div>
-            <?php endif; ?>
-        </div>
+            </div>
+        <?php endif; ?>
     </div>
 
-    <!-- Bootstrap and JavaScript -->
+    <!-- Bootstrap JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
-    <?php if (!$noVocabularies): ?>
-    <script>
-        // Vokabeln als JavaScript Array
-        const vocabularies = <?php echo json_encode($vocabularies); ?>;
-        let currentIndex = 0;
-        let isFlipped = false;
-        let isCompleted = false;
-        
-        const flashcard = document.getElementById('flashcard');
-        const frontText = document.getElementById('frontText');
-        const backText = document.getElementById('backText');
-        const currentCardSpan = document.getElementById('currentCard');
-        const nextButton = document.getElementById('nextButton');
-        const prevButton = document.getElementById('prevButton');
-        const flashcardUI = document.getElementById('flashcardUI');
-        const completionScreen = document.getElementById('completionScreen');
-        const restartButton = document.getElementById('restartButton');
-        
-        // Karte initialisieren
-        updateCard();
-        
-        // Karte umdrehen bei Klick
-        flashcard.addEventListener('click', () => {
-            flashcard.classList.toggle('flipped');
-            isFlipped = !isFlipped;
-        });
-        
-        // Nächste Karte
-        nextButton.addEventListener('click', () => {
-            if (currentIndex < vocabularies.length - 1) {
-                resetCard();
-                setTimeout(() => {
-                    currentIndex++;
-                    updateCard();
-                }, 300);
-            } else if (!isCompleted) {
-                showCompletionScreen();
-            }
-        });
-        
-        // Vorherige Karte
-        prevButton.addEventListener('click', () => {
-            if (currentIndex > 0) {
-                resetCard();
-                setTimeout(() => {
-                    currentIndex--;
-                    updateCard();
-                }, 300);
-            }
-        });
-        
-        // Neustart
-        restartButton.addEventListener('click', () => {
-            currentIndex = 0;
-            isCompleted = false;
-            resetCard();
-            updateCard();
-            showFlashcardUI();
-        });
-        
-        // Karte aktualisieren
-        function updateCard() {
-            const vocab = vocabularies[currentIndex];
-            frontText.textContent = vocab.deutsch;
-            backText.textContent = vocab.fremdsprache;
-            currentCardSpan.textContent = currentIndex + 1;
-            
-            // Button-Status aktualisieren
-            prevButton.disabled = currentIndex === 0;
-            
-            if (currentIndex === vocabularies.length - 1) {
-                nextButton.innerHTML = '<i class="fas fa-flag-checkered"></i> Fertig';
-            } else {
-                nextButton.innerHTML = 'Nächste <i class="fas fa-chevron-right"></i>';
-            }
-        }
-        
-        // Karte zurücksetzen (nicht umgedreht)
-        function resetCard() {
-            if (isFlipped) {
-                flashcard.classList.remove('flipped');
-                isFlipped = false;
-            }
-        }
-        
-        // Abschlussbildschirm anzeigen
-        function showCompletionScreen() {
-            isCompleted = true;
-            flashcardUI.style.display = 'none';
-            completionScreen.style.display = 'block';
-        }
-        
-        // Karteikarten-UI anzeigen
-        function showFlashcardUI() {
-            flashcardUI.style.display = 'block';
-            completionScreen.style.display = 'none';
-        }
-        
-        // Keyboard controls
-        document.addEventListener('keydown', function(e) {
-            if (e.code === 'Space') {
-                e.preventDefault();
-                flashcard.click();
-            } else if (e.code === 'ArrowLeft') {
-                e.preventDefault();
-                if (!prevButton.disabled) {
-                    prevButton.click();
-                }
-            } else if (e.code === 'ArrowRight') {
-                e.preventDefault();
-                nextButton.click();
-            }
-        });
-    </script>
-    <?php endif; ?>
 </body>
 </html>
