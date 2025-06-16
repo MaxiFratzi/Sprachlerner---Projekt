@@ -14,8 +14,8 @@ $user_id = $_SESSION['user_id'];
 
 // Datenbankverbindung herstellen
 $servername = "localhost";
-$dbUsername = "root"; 
-$dbPassword = "root"; // Oder "root" je nach Konfiguration
+$dbUsername = "root";
+$dbPassword = "root"; 
 $dbName = "vokabeln"; 
 
 $conn = new mysqli($servername, $dbUsername, $dbPassword, $dbName);
@@ -25,102 +25,69 @@ if ($conn->connect_error) {
     die("Verbindung fehlgeschlagen: " . $conn->connect_error);
 }
 
-// Suchfunktion
-$search_query = isset($_GET['search']) ? trim($_GET['search']) : '';
-$learning_sets = [];
+// Dashboard-Statistiken abrufen
+$stats = [];
 
-// Alle verfügbaren Lernsets definieren (du kannst diese auch aus der Datenbank laden)
-$all_sets = [
-    ['name' => 'Easy', 'terms' => 48, 'file' => 'easyVoc.php', 'description' => 'Einfache Vokabeln für Anfänger'],
-    ['name' => 'Medium', 'terms' => 48, 'file' => 'mediumVoc.php', 'description' => 'Mittelschwere Vokabeln'],
-    ['name' => 'Hard', 'terms' => 48, 'file' => 'hardVoc.php', 'description' => 'Schwere Vokabeln für Fortgeschrittene'],
-    // Hier kannst du weitere Sets hinzufügen
-];
+// Gesamtanzahl verfügbare Lernsets (Standard + eigene)
+$total_sets_sql = "SELECT COUNT(*) as total FROM lernsets WHERE is_active = 1 AND (type = 'standard' OR user_id = ?)";
+$stmt = $conn->prepare($total_sets_sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$stats['total_sets'] = $result->fetch_assoc()['total'];
 
-// Suche durchführen
-if (!empty($search_query)) {
-    foreach ($all_sets as $set) {
-        if (stripos($set['name'], $search_query) !== false || 
-            stripos($set['description'], $search_query) !== false) {
-            $learning_sets[] = $set;
-        }
-    }
-} else {
-    $learning_sets = $all_sets;
-}
+// Eigene Lernsets
+$custom_sets_sql = "SELECT COUNT(*) as total FROM lernsets WHERE type = 'custom' AND user_id = ? AND is_active = 1";
+$stmt = $conn->prepare($custom_sets_sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$stats['custom_sets'] = $result->fetch_assoc()['total'];
 
-// Heutiges Datum
-$today = date('Y-m-d');
+// Gesamtanzahl Vokabeln (aus verfügbaren Lernsets)
+$total_vocab_sql = "SELECT COUNT(v.id) as total 
+                    FROM vokabeln v 
+                    JOIN lernsets l ON v.lernset_id = l.id 
+                    WHERE l.is_active = 1 AND (l.type = 'standard' OR l.user_id = ?)";
+$stmt = $conn->prepare($total_vocab_sql);
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$stats['total_vocabularies'] = $result->fetch_assoc()['total'];
 
-// Gelernte Vokabeln heute abrufen
-$stmt = $conn->prepare("SELECT count FROM vocabulary_tracking WHERE user_id = ? AND learn_date = ?");
-$stmt->bind_param("is", $user_id, $today);
+// Letzte 5 Lernsets (für Quick Access)
+$recent_sets_sql = "SELECT l.id, l.name, l.description, l.type, COUNT(v.id) as vocab_count 
+                    FROM lernsets l 
+                    LEFT JOIN vokabeln v ON l.id = v.lernset_id 
+                    WHERE l.is_active = 1 AND (l.type = 'standard' OR l.user_id = ?)
+                    GROUP BY l.id 
+                    ORDER BY l.created_at DESC 
+                    LIMIT 5";
+$stmt = $conn->prepare($recent_sets_sql);
+$stmt->bind_param("i", $user_id);
 $stmt->execute();
 $result = $stmt->get_result();
 
-$vocab_count = 0;
-if ($result->num_rows > 0) {
-    $row = $result->fetch_assoc();
-    $vocab_count = $row['count'];
+$recent_sets = [];
+while ($row = $result->fetch_assoc()) {
+    $recent_sets[] = $row;
 }
 
-$stmt->close();
+// Beliebteste Lernsets (Standard-Sets mit meisten Vokabeln)
+$popular_sets_sql = "SELECT l.id, l.name, l.description, COUNT(v.id) as vocab_count 
+                     FROM lernsets l 
+                     LEFT JOIN vokabeln v ON l.id = v.lernset_id 
+                     WHERE l.type = 'standard' AND l.is_active = 1
+                     GROUP BY l.id 
+                     ORDER BY vocab_count DESC 
+                     LIMIT 3";
+$result = $conn->query($popular_sets_sql);
 
-// Calculate learning streak (days in a row with at least 5 vocabularies learned)
-$streak = 0;
-$minimum_vocab = 5; // Minimum vocabulary required to maintain streak
-$checkDate = $today;
-$streakRunning = true;
-
-$streakStmt = $conn->prepare("SELECT count FROM vocabulary_tracking WHERE user_id = ? AND learn_date = ? AND count >= ?");
-$streakStmt->bind_param("isi", $user_id, $checkDate, $minimum_vocab);
-
-// Loop backwards through days until we find a day with fewer than 5 words learned
-while ($streakRunning) {
-    $streakStmt->execute();
-    $streakResult = $streakStmt->get_result();
-    
-    if ($streakResult->num_rows > 0) {
-        // Day found with at least 5 words learned - increment streak
-        $streak++;
-        // Move to the previous day
-        $checkDate = date('Y-m-d', strtotime($checkDate . ' -1 day'));
-    } else {
-        // Day found with less than 5 words learned - streak broken
-        $streakRunning = false;
-    }
+$popular_sets = [];
+while ($row = $result->fetch_assoc()) {
+    $popular_sets[] = $row;
 }
 
-$streakStmt->close();
-
-// Calculate average success rate from all tests
-$success_stmt = $conn->prepare("SELECT AVG(success_rate) as avg_rate FROM test_results WHERE user_id = ?");
-$success_stmt->bind_param("i", $user_id);
-$success_stmt->execute();
-$success_result = $success_stmt->get_result();
-
-$success_rate = 0;
-if ($success_result->num_rows > 0) {
-    $success_row = $success_result->fetch_assoc();
-    if ($success_row['avg_rate'] !== null) {
-        $success_rate = round($success_row['avg_rate']);
-    }
-}
-$success_stmt->close();
-
-// Handle case with no tests taken
-$tests_taken = false;
-$count_stmt = $conn->prepare("SELECT COUNT(*) as test_count FROM test_results WHERE user_id = ?");
-$count_stmt->bind_param("i", $user_id);
-$count_stmt->execute();
-$count_result = $count_stmt->get_result();
-if ($count_result->num_rows > 0) {
-    $count_row = $count_result->fetch_assoc();
-    $tests_taken = ($count_row['test_count'] > 0);
-}
-$count_stmt->close();
-
-// Continue with database close and the rest of your code...
 $conn->close();
 ?>
 
@@ -129,15 +96,20 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SprachenMeister - Lernzentrum</title>
+    <title>SprachenMeister - Dashboard</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Fontawesome Icons -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
             --primary-color: #4255ff;
             --secondary-color: #ff8a00;
+            --success-color: #28a745;
+            --info-color: #17a2b8;
+            --warning-color: #ffc107;
             --light-blue: #b1f4ff;
             --pink: #ffb1f4;
             --orange: #ffcf8a;
@@ -145,7 +117,7 @@ $conn->close();
         
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f6f9;
+            background-color: #f4f4f4;
         }
         
         .navbar {
@@ -157,228 +129,324 @@ $conn->close();
             font-weight: bold;
             color: var(--primary-color);
         }
-
-        .sidebar {
-            background-color: white;
-            height: calc(100vh - 60px);
-            width: 250px;
-            position: fixed;
-            top: 60px;
-            left: 0;
-            padding: 20px;
-            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .sidebar-header {
-            font-weight: bold;
-            margin-bottom: 20px;
-            padding-bottom: 10px;
-            border-bottom: 1px solid #e0e0e0;
-        }
-        
-        .sidebar-menu {
-            list-style: none;
-            padding: 0;
-            margin: 0;
-        }
-        
-        .sidebar-menu li {
-            margin-bottom: 15px;
-        }
-        
-        .sidebar-menu a {
-            color: #333;
-            text-decoration: none;
-            font-size: 16px;
-            display: block;
-            padding: 8px 10px;
-            border-radius: 8px;
-            transition: all 0.3s ease;
-        }
-        
-        .sidebar-menu a:hover {
-            background-color: #f0f4ff;
-            color: var(--primary-color);
-        }
-        
-        .sidebar-menu a.active {
-            background-color: var(--primary-color);
-            color: white;
-        }
-        
-        .sidebar-menu i {
-            margin-right: 10px;
-            width: 20px;
-            text-align: center;
-        }
-        
-        .content {
-            margin-left: 250px;
-            padding: 30px;
-        }
         
         .user-avatar {
             width: 40px;
             height: 40px;
-            border-radius: 50%;
             background-color: var(--primary-color);
-            color: white;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: white;
             cursor: pointer;
+            transition: all 0.3s ease;
         }
         
-        .dropdown-toggle::after {
-            display: none;
+        .user-avatar:hover {
+            background-color: #3346e6;
         }
         
         .welcome-section {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 3rem 0;
+            margin-bottom: 2rem;
+        }
+        
+        .welcome-content {
             text-align: center;
-            margin-bottom: 40px;
         }
         
-        .welcome-section h1 {
+        .welcome-content h1 {
             font-size: 2.5rem;
-            color: var(--primary-color);
-            margin-bottom: 15px;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
         }
         
-        .stats-container {
+        .welcome-content .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+        
+        .quick-actions {
             display: flex;
-            justify-content: space-between;
-            margin-bottom: 40px;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .quick-action-btn {
+            background-color: rgba(255, 255, 255, 0.2);
+            border: 2px solid white;
+            color: white;
+            border-radius: 50px;
+            padding: 0.8rem 2rem;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            transition: all 0.3s ease;
+        }
+        
+        .quick-action-btn:hover {
+            background-color: white;
+            color: var(--primary-color);
+            transform: translateY(-2px);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
         }
         
         .stat-card {
             background-color: white;
             border-radius: 15px;
-            padding: 20px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            width: 30%;
+            padding: 2rem;
             text-align: center;
-        }
-        
-        .stat-card h3 {
-            color: var(--primary-color);
-            font-size: 2rem;
-            margin-bottom: 5px;
-        }
-        
-        .stat-card p {
-            color: #666;
-            margin-bottom: 0;
-        }
-        
-        .recent-sets {
-            background-color: white;
-            border-radius: 15px;
-            padding: 20px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
         }
         
-        .recent-sets h2 {
-            margin-bottom: 20px;
-            font-size: 1.5rem;
-            color: #333;
-        }
-        
-        .set-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-        }
-        
-        .set-card {
-            background-color: #f0f4ff;
-            border-radius: 12px;
-            padding: 15px;
-            border-left: 5px solid var(--primary-color);
-            transition: transform 0.3s;
-        }
-        
-        .set-card:hover {
+        .stat-card:hover {
             transform: translateY(-5px);
         }
         
-        .set-card h4 {
-            font-size: 1.1rem;
-            margin-bottom: 8px;
+        .stat-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
         }
         
-        .set-card p {
+        .stat-card.primary .stat-icon {
+            color: var(--primary-color);
+        }
+        
+        .stat-card.success .stat-icon {
+            color: var(--success-color);
+        }
+        
+        .stat-card.info .stat-icon {
+            color: var(--info-color);
+        }
+        
+        .stat-card.warning .stat-icon {
+            color: var(--warning-color);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-card.primary .stat-number {
+            color: var(--primary-color);
+        }
+        
+        .stat-card.success .stat-number {
+            color: var(--success-color);
+        }
+        
+        .stat-card.info .stat-number {
+            color: var(--info-color);
+        }
+        
+        .stat-card.warning .stat-number {
+            color: var(--warning-color);
+        }
+        
+        .stat-label {
+            color: #666;
+            font-weight: 600;
+        }
+        
+        .dashboard-section {
+            background-color: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f8f9fa;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin: 0;
+        }
+        
+        .section-link {
+            color: var(--primary-color);
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .section-link:hover {
+            color: #3346e6;
+            text-decoration: underline;
+        }
+        
+        .lernset-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+        }
+        
+        .lernset-card {
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            border: 2px solid transparent;
+        }
+        
+        .lernset-card:hover {
+            transform: translateY(-3px);
+            border-color: var(--primary-color);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+        }
+        
+        .lernset-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+        
+        .lernset-title {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: var(--primary-color);
+            margin-bottom: 0.3rem;
+        }
+        
+        .lernset-badge {
+            font-size: 0.7rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            color: white;
+        }
+        
+        .lernset-badge.standard {
+            background-color: var(--primary-color);
+        }
+        
+        .lernset-badge.custom {
+            background-color: var(--secondary-color);
+        }
+        
+        .lernset-description {
             color: #666;
             font-size: 0.9rem;
-            margin-bottom: 10px;
+            margin-bottom: 1rem;
+            line-height: 1.4;
         }
         
-        .set-card .description {
+        .lernset-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .lernset-vocab-count {
             color: #888;
-            font-size: 0.85rem;
-            margin-bottom: 15px;
+            font-size: 0.9rem;
         }
         
-        .btn-primary {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
+        .lernset-actions {
+            display: flex;
+            gap: 0.5rem;
         }
         
-        .btn-outline-primary {
-            color: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-        
-        .search-form {
-            position: relative;
-        }
-        
-        .search-form input {
+        .btn-sm-custom {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
             border-radius: 20px;
-            padding-left: 45px;
+            font-weight: 600;
         }
         
-        .search-form .search-icon {
-            position: absolute;
-            left: 15px;
-            top: 50%;
-            transform: translateY(-50%);
-            color: #666;
-        }
-        
-        .no-results {
+        .empty-state {
             text-align: center;
             color: #666;
-            font-style: italic;
-            margin: 20px 0;
+            padding: 3rem;
         }
         
-        .search-results-info {
-            margin-bottom: 20px;
-            color: #666;
-            font-size: 0.9rem;
+        .empty-state i {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 1rem;
+        }
+        
+        .empty-state p {
+            margin-bottom: 2rem;
+        }
+        
+        @media (max-width: 768px) {
+            .welcome-content h1 {
+                font-size: 2rem;
+            }
+            
+            .quick-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+            
+            .stats-grid {
+                grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+                gap: 1rem;
+            }
+            
+            .stat-card {
+                padding: 1.5rem;
+            }
+            
+            .lernset-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .dashboard-section {
+                padding: 1.5rem;
+            }
         }
     </style>
 </head>
 <body>
     <!-- Navigation -->
-    <nav class="navbar navbar-expand-lg navbar-light bg-white fixed-top">
-        <div class="container-fluid">
-            <a class="navbar-brand ms-4" href="main.php">SprachenMeister</a>
+    <nav class="navbar navbar-expand-lg navbar-light bg-white">
+        <div class="container">
+            <a class="navbar-brand" href="main.php">SprachenMeister</a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <form class="d-flex mx-auto mb-2 mb-lg-0 search-form" method="GET" action="main.php">
-                    <i class="fas fa-search search-icon"></i>
-                    <input class="form-control me-2" type="search" name="search" 
-                           placeholder="Nach Lernsets suchen..." 
-                           value="<?php echo htmlspecialchars($search_query); ?>"
-                           style="width: 300px; border-radius: 20px;">
-                    <button class="btn btn-outline-primary" type="submit" style="border-radius: 20px;">
-                        <i class="fas fa-search"></i>
-                    </button>
-                </form>
-                <div class="ms-auto me-4">
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="main.php">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="library.php">Bibliothek</a>
+                    </li>
+                </ul>
+                <div class="ms-auto">
                     <div class="dropdown">
                         <div class="user-avatar dropdown-toggle" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="fas fa-user"></i>
@@ -395,105 +463,200 @@ $conn->close();
         </div>
     </nav>
 
-    <!-- Sidebar -->
-    <div class="sidebar">
-        <div class="sidebar-header">
-            Lernzentrum
+    <!-- Welcome Section -->
+    <div class="welcome-section">
+        <div class="container">
+            <div class="welcome-content">
+                <h1>Willkommen zurück, <?php echo htmlspecialchars($username); ?>!</h1>
+                <div class="subtitle">Bereit für deine nächste Lerneinheit?</div>
+                
+                <div class="quick-actions">
+                    <a href="library.php" class="quick-action-btn">
+                        <i class="fas fa-book"></i>
+                        <span>Bibliothek</span>
+                    </a>
+                    <a href="create_set.php" class="quick-action-btn">
+                        <i class="fas fa-plus"></i> Neues Lernset
+                    </a>
+                    <?php if (!empty($recent_sets)): ?>
+                        <a href="lernset.php?id=<?php echo $recent_sets[0]['id']; ?>" class="quick-action-btn">
+                            <i class="fas fa-play"></i> Weiterlernen
+                        </a>
+                    <?php endif; ?>
+                </div>
+            </div>
         </div>
-        <ul class="sidebar-menu">
-            <li>
-                <a href="main.php" class="active">
-                    <i class="fas fa-home"></i> Dashboard
-                </a>
-            </li>
-            <li>
-                <a href="library.php">
-                    <i class="fas fa-book"></i> Bibliothek
-                </a>
-            </li>
-        </ul>
     </div>
 
-    <!-- Main Content -->
-    <div class="content" style="margin-top: 60px;">
-        <div class="welcome-section">
-            <h1>Willkommen zurück, <?php echo htmlspecialchars($username); ?>!</h1>
-            <p>Bereit zum Lernen? Hier ist dein Fortschritt.</p>
-        </div>
-        
-        <div class="stats-container">
-            <div class="stat-card">
-                <h3><?php echo $vocab_count; ?></h3>
-                <p>Gelernte Vokabeln heute</p>
+    <div class="container">
+        <!-- Statistics -->
+        <div class="stats-grid">
+            <div class="stat-card primary">
+                <div class="stat-icon">
+                    <i class="fas fa-book"></i>
+                </div>
+                <div class="stat-number"><?php echo $stats['total_sets']; ?></div>
+                <div class="stat-label">Verfügbare Lernsets</div>
             </div>
-            <div class="stat-card">
-                <h3><?php echo $streak; ?></h3>
-                <p>Tage in Folge gelernt</p>
-            </div>
-            <div class="stat-card">
-                <h3><?php echo $tests_taken ? $success_rate : '-'; ?>%</h3>
-                <p>Erfolgsquote</p>
-            </div>
-        </div>
-        
-        <div class="recent-sets">
-            <h2>
-                <?php if (!empty($search_query)): ?>
-                    Suchergebnisse für "<?php echo htmlspecialchars($search_query); ?>"
-                <?php else: ?>
-                    Verfügbare Lernsets
-                <?php endif; ?>
-            </h2>
             
-            <?php if (!empty($search_query)): ?>
-                <div class="search-results-info">
-                    <?php echo count($learning_sets); ?> Ergebnis(se) gefunden
-                    <a href="main.php" class="ms-2 text-decoration-none">
-                        <i class="fas fa-times"></i> Suche zurücksetzen
+            <div class="stat-card success">
+                <div class="stat-icon">
+                    <i class="fas fa-user-edit"></i>
+                </div>
+                <div class="stat-number"><?php echo $stats['custom_sets']; ?></div>
+                <div class="stat-label">Eigene Lernsets</div>
+            </div>
+            
+            <div class="stat-card info">
+                <div class="stat-icon">
+                    <i class="fas fa-list"></i>
+                </div>
+                <div class="stat-number"><?php echo $stats['total_vocabularies']; ?></div>
+                <div class="stat-label">Gesamt Vokabeln</div>
+            </div>
+            
+            <div class="stat-card warning">
+                <div class="stat-icon">
+                    <i class="fas fa-fire"></i>
+                </div>
+                <div class="stat-number"><?php echo count($recent_sets); ?></div>
+                <div class="stat-label">Kürzlich verwendet</div>
+            </div>
+        </div>
+
+        <!-- Recent Learning Sets -->
+        <?php if (!empty($recent_sets)): ?>
+        <div class="dashboard-section">
+            <div class="section-header">
+                <h2 class="section-title"><i class="fas fa-clock me-2"></i>Kürzlich verwendet</h2>
+                <a href="library.php" class="section-link">Alle anzeigen <i class="fas fa-arrow-right"></i></a>
+            </div>
+            
+            <div class="lernset-grid">
+                <?php foreach ($recent_sets as $set): ?>
+                    <div class="lernset-card" onclick="window.location='lernset.php?id=<?php echo $set['id']; ?>'">
+                        <div class="lernset-header">
+                            <div>
+                                <div class="lernset-title"><?php echo htmlspecialchars($set['name']); ?></div>
+                                <span class="lernset-badge <?php echo $set['type']; ?>">
+                                    <?php echo ucfirst($set['type']); ?>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="lernset-description">
+                            <?php echo htmlspecialchars($set['description'] ?: 'Keine Beschreibung verfügbar'); ?>
+                        </div>
+                        <div class="lernset-stats">
+                            <span class="lernset-vocab-count">
+                                <i class="fas fa-list-ol me-1"></i><?php echo $set['vocab_count']; ?> Vokabeln
+                            </span>
+                            <div class="lernset-actions">
+                                <button class="btn btn-primary btn-sm-custom" onclick="event.stopPropagation(); window.location='karteikarten.php?id=<?php echo $set['id']; ?>'">
+                                    <i class="fas fa-clone me-1"></i>Karten
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm-custom" onclick="event.stopPropagation(); window.location='test.php?id=<?php echo $set['id']; ?>'">
+                                    <i class="fas fa-check me-1"></i>Test
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Popular Learning Sets -->
+        <?php if (!empty($popular_sets)): ?>
+        <div class="dashboard-section">
+            <div class="section-header">
+                <h2 class="section-title"><i class="fas fa-star me-2"></i>Beliebte Standard-Lernsets</h2>
+                <a href="library.php" class="section-link">Alle anzeigen <i class="fas fa-arrow-right"></i></a>
+            </div>
+            
+            <div class="lernset-grid">
+                <?php foreach ($popular_sets as $set): ?>
+                    <div class="lernset-card" onclick="window.location='lernset.php?id=<?php echo $set['id']; ?>'">
+                        <div class="lernset-header">
+                            <div>
+                                <div class="lernset-title"><?php echo htmlspecialchars($set['name']); ?></div>
+                                <span class="lernset-badge standard">Standard</span>
+                            </div>
+                        </div>
+                        <div class="lernset-description">
+                            <?php echo htmlspecialchars($set['description'] ?: 'Keine Beschreibung verfügbar'); ?>
+                        </div>
+                        <div class="lernset-stats">
+                            <span class="lernset-vocab-count">
+                                <i class="fas fa-list-ol me-1"></i><?php echo $set['vocab_count']; ?> Vokabeln
+                            </span>
+                            <div class="lernset-actions">
+                                <button class="btn btn-primary btn-sm-custom" onclick="event.stopPropagation(); window.location='karteikarten.php?id=<?php echo $set['id']; ?>'">
+                                    <i class="fas fa-clone me-1"></i>Karten
+                                </button>
+                                <button class="btn btn-outline-primary btn-sm-custom" onclick="event.stopPropagation(); window.location='test.php?id=<?php echo $set['id']; ?>'">
+                                    <i class="fas fa-check me-1"></i>Test
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Empty State für neue Benutzer -->
+        <?php if (empty($recent_sets) && $stats['custom_sets'] == 0): ?>
+        <div class="dashboard-section">
+            <div class="empty-state">
+                <i class="fas fa-rocket"></i>
+                <h3>Willkommen bei SprachenMeister!</h3>
+                <p>Du hast noch keine Lernsets erstellt oder verwendet. Starte jetzt mit dem Lernen!</p>
+                <div class="d-flex justify-content-center gap-2 flex-wrap">
+                    <a href="library.php" class="btn btn-primary">
+                        <i class="fas fa-book me-2"></i>Zur Bibliothek
+                    </a>
+                    <a href="create_set.php" class="btn btn-outline-primary">
+                        <i class="fas fa-plus me-2"></i>Eigenes Lernset erstellen
                     </a>
                 </div>
-            <?php endif; ?>
-            
-            <?php if (empty($learning_sets)): ?>
-                <div class="no-results">
-                    <i class="fas fa-search fa-2x mb-3"></i>
-                    <p>Keine Lernsets gefunden für "<?php echo htmlspecialchars($search_query); ?>"</p>
-                    <a href="main.php" class="btn btn-outline-primary">Alle Sets anzeigen</a>
-                </div>
-            <?php else: ?>
-                <div class="set-grid">
-                    <?php foreach ($learning_sets as $set): ?>
-                        <div class="set-card">
-                            <h4><?php echo htmlspecialchars($set['name']); ?></h4>
-                            <p><?php echo $set['terms']; ?> Begriffe</p>
-                            <div class="description"><?php echo htmlspecialchars($set['description']); ?></div>
-                            <a href="<?php echo htmlspecialchars($set['file']); ?>" class="btn btn-primary btn-sm">
-                                Weiter lernen
-                            </a>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            <?php endif; ?>
+            </div>
         </div>
+        <?php endif; ?>
     </div>
 
-    <!-- Bootstrap and JavaScript -->
+    <!-- Bootstrap JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        // Optional: Auto-submit bei Enter-Taste
-        document.querySelector('input[name="search"]').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                this.closest('form').submit();
-            }
+        // Animation für Statistik-Karten beim Laden
+        document.addEventListener('DOMContentLoaded', function() {
+            const statNumbers = document.querySelectorAll('.stat-number');
+            
+            statNumbers.forEach(function(element) {
+                const finalValue = parseInt(element.textContent);
+                let currentValue = 0;
+                const increment = Math.ceil(finalValue / 20);
+                
+                const timer = setInterval(function() {
+                    currentValue += increment;
+                    if (currentValue >= finalValue) {
+                        currentValue = finalValue;
+                        clearInterval(timer);
+                    }
+                    element.textContent = currentValue;
+                }, 50);
+            });
         });
         
-        // Optional: Suchfeld fokussieren mit Strg+K
-        document.addEventListener('keydown', function(e) {
-            if (e.ctrlKey && e.key === 'k') {
-                e.preventDefault();
-                document.querySelector('input[name="search"]').focus();
-            }
+        // Hover-Effekte für Lernset-Karten
+        document.querySelectorAll('.lernset-card').forEach(function(card) {
+            card.addEventListener('mouseenter', function() {
+                this.style.transform = 'translateY(-3px)';
+            });
+            
+            card.addEventListener('mouseleave', function() {
+                this.style.transform = 'translateY(0)';
+            });
         });
     </script>
 </body>

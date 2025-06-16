@@ -8,14 +8,14 @@ if (!isset($_SESSION['user_id'])) {
     exit();
 }
 
-// Benutzername aus der Session holen
+$user_id = $_SESSION['user_id'];
 $username = isset($_SESSION['username']) ? $_SESSION['username'] : 'Benutzer';
 
 // Datenbankverbindung herstellen
 $servername = "localhost";
 $dbUsername = "root";
-$dbPassword = "root";
-$dbName = "vokabeln";
+$dbPassword = "root"; 
+$dbName = "vokabeln"; 
 
 $conn = new mysqli($servername, $dbUsername, $dbPassword, $dbName);
 
@@ -24,50 +24,71 @@ if ($conn->connect_error) {
     die("Verbindung fehlgeschlagen: " . $conn->connect_error);
 }
 
-// Verfügbare Lernsets abrufen
-$sql = "SELECT id, name, description, type FROM lernsets WHERE is_active = 1 ORDER BY type DESC, name ASC";
-$result = $conn->query($sql);
+// Suchparameter
+$search = isset($_GET['search']) ? trim($_GET['search']) : '';
+$filter = isset($_GET['filter']) ? $_GET['filter'] : 'all';
 
-$lernsets = array();
-if ($result->num_rows > 0) {
-    while($row = $result->fetch_assoc()) {
-        // Anzahl der Vokabeln für jedes Lernset abrufen
-        $count_sql = "SELECT COUNT(*) as vocab_count FROM vokabeln WHERE lernset_id = ?";
-        $count_stmt = $conn->prepare($count_sql);
-        $count_stmt->bind_param("i", $row['id']);
-        $count_stmt->execute();
-        $count_result = $count_stmt->get_result();
-        $count_row = $count_result->fetch_assoc();
-        
-        $row['vocab_count'] = $count_row['vocab_count'];
-        $lernsets[] = $row;
-        $count_stmt->close();
-    }
+// Feedback-Nachrichten
+$message = '';
+$messageType = '';
+
+if (isset($_GET['created']) && $_GET['created'] == 1) {
+    $message = "Lernset erfolgreich erstellt!";
+    $messageType = "success";
+} elseif (isset($_GET['deleted']) && $_GET['deleted'] == 1) {
+    $message = "Lernset erfolgreich gelöscht!";
+    $messageType = "success";
+}
+
+// Lernsets laden
+$where_conditions = ["l.is_active = 1"];
+$params = [];
+$types = "";
+
+// Filter anwenden
+if ($filter === 'custom') {
+    $where_conditions[] = "l.type = 'custom' AND l.user_id = ?";
+    $params[] = $user_id;
+    $types .= "i";
+} elseif ($filter === 'standard') {
+    $where_conditions[] = "l.type = 'standard'";
+} else {
+    // Alle Lernsets: Standard + eigene Custom
+    $where_conditions[] = "(l.type = 'standard' OR (l.type = 'custom' AND l.user_id = ?))";
+    $params[] = $user_id;
+    $types .= "i";
+}
+
+// Suchfilter
+if (!empty($search)) {
+    $where_conditions[] = "(l.name LIKE ? OR l.description LIKE ?)";
+    $search_param = "%$search%";
+    $params[] = $search_param;
+    $params[] = $search_param;
+    $types .= "ss";
+}
+
+// SQL Query
+$sql = "SELECT l.id, l.name, l.description, l.type, l.user_id, l.created_at, COUNT(v.id) as vocab_count 
+        FROM lernsets l 
+        LEFT JOIN vokabeln v ON l.id = v.lernset_id 
+        WHERE " . implode(" AND ", $where_conditions) . "
+        GROUP BY l.id 
+        ORDER BY l.type ASC, l.created_at DESC";
+
+$stmt = $conn->prepare($sql);
+if (!empty($params)) {
+    $stmt->bind_param($types, ...$params);
+}
+$stmt->execute();
+$result = $stmt->get_result();
+
+$lernsets = [];
+while ($row = $result->fetch_assoc()) {
+    $lernsets[] = $row;
 }
 
 $conn->close();
-
-// Aktuell ausgewähltes Lernset aus URL Parameter oder Session
-$selected_lernset = null;
-if (isset($_GET['lernset'])) {
-    $selected_lernset = (int)$_GET['lernset'];
-    $_SESSION['selected_lernset'] = $selected_lernset;
-} elseif (isset($_SESSION['selected_lernset'])) {
-    $selected_lernset = $_SESSION['selected_lernset'];
-} elseif (!empty($lernsets)) {
-    // Standardmäßig das erste Lernset auswählen
-    $selected_lernset = $lernsets[0]['id'];
-    $_SESSION['selected_lernset'] = $selected_lernset;
-}
-
-// Informationen zum ausgewählten Lernset
-$selected_lernset_info = null;
-foreach ($lernsets as $lernset) {
-    if ($lernset['id'] == $selected_lernset) {
-        $selected_lernset_info = $lernset;
-        break;
-    }
-}
 ?>
 
 <!DOCTYPE html>
@@ -75,7 +96,7 @@ foreach ($lernsets as $lernset) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SprachenMeister - Easy Vokabeln</title>
+    <title>SprachenMeister - Bibliothek</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Fontawesome Icons -->
@@ -84,6 +105,9 @@ foreach ($lernsets as $lernset) {
         :root {
             --primary-color: #4255ff;
             --secondary-color: #ff8a00;
+            --success-color: #28a745;
+            --info-color: #17a2b8;
+            --warning-color: #ffc107;
             --light-blue: #b1f4ff;
             --pink: #ffb1f4;
             --orange: #ffcf8a;
@@ -104,126 +128,346 @@ foreach ($lernsets as $lernset) {
             color: var(--primary-color);
         }
         
-        .library-header {
-            background-color: var(--primary-color);
-            color: white;
-            padding: 2rem 0;
-            text-align: center;
-        }
-        
-        .library-content {
-            max-width: 900px;
-            margin: 2rem auto;
-            background-color: white;
-            border-radius: 15px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-            padding: 2rem;
-        }
-        
-        .learning-options {
-            display: flex;
-            justify-content: space-between;
-            flex-wrap: wrap;
-            gap: 20px;
-            margin-top: 30px;
-        }
-        
-        .option-card {
-            background-color: #f8f9fa;
-            border-radius: 10px;
-            padding: 2rem;
-            flex: 1;
-            min-width: 280px;
-            text-align: center;
-            transition: transform 0.3s;
-            cursor: pointer;
-        }
-        
-        .option-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-        }
-        
-        .option-icon {
-            font-size: 4rem;
-            color: var(--primary-color);
-            margin-bottom: 20px;
-        }
-        
-        .option-card h3 {
-            font-weight: 600;
-            font-size: 1.5rem;
-            margin-bottom: 15px;
-            color: #333;
-        }
-        
-        .option-card p {
-            color: #6c757d;
-            margin-bottom: 20px;
-        }
-        
-        .btn-primary {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
-            padding: 10px 25px;
-            font-weight: 600;
-            border-radius: 50px;
-        }
-        
         .user-avatar {
             width: 40px;
             height: 40px;
-            border-radius: 50%;
             background-color: var(--primary-color);
-            color: white;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: white;
             cursor: pointer;
+            transition: all 0.3s ease;
         }
         
-        .dropdown-toggle::after {
-            display: none;
+        .user-avatar:hover {
+            background-color: #3346e6;
         }
         
-        .lernset-selector {
-            background-color: #f8f9fa;
+        .page-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 3rem 0;
+            text-align: center;
+        }
+        
+        .page-header h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        
+        .page-header .subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+        }
+        
+        .search-section {
+            background-color: white;
+            border-radius: 15px;
+            padding: 2rem;
+            margin: -2rem auto 2rem;
+            max-width: 800px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            position: relative;
+            z-index: 10;
+        }
+        
+        .search-form {
+            display: flex;
+            gap: 1rem;
+            align-items: end;
+        }
+        
+        .search-input {
+            flex: 1;
+        }
+        
+        .form-control {
             border-radius: 10px;
-            padding: 1.5rem;
+            border: 2px solid #e9ecef;
+            padding: 0.8rem;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus {
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 0.2rem rgba(66, 85, 255, 0.25);
+        }
+        
+        .btn-primary-custom {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+            font-weight: 600;
+            border-radius: 10px;
+            padding: 0.8rem 2rem;
+            white-space: nowrap;
+        }
+        
+        .btn-primary-custom:hover {
+            background-color: #3346e6;
+            border-color: #3346e6;
+            color: white;
+        }
+        
+        .filter-tabs {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
             margin-bottom: 2rem;
+        }
+        
+        .filter-tab {
+            background-color: white;
+            border: 2px solid #e9ecef;
+            color: #666;
+            border-radius: 25px;
+            padding: 0.6rem 1.5rem;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+        
+        .filter-tab:hover, .filter-tab.active {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+            text-decoration: none;
+        }
+        
+        .create-button {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            width: 60px;
+            height: 60px;
+            background-color: var(--secondary-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            text-decoration: none;
+            color: white;
+            font-size: 1.5rem;
+            transition: all 0.3s ease;
+            z-index: 1000;
+        }
+        
+        .create-button:hover {
+            background-color: #e67e00;
+            transform: scale(1.1);
+            color: white;
+        }
+        
+        .lernsets-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 2rem;
+            padding: 2rem 0;
         }
         
         .lernset-card {
             background-color: white;
-            border: 2px solid #e9ecef;
-            border-radius: 8px;
-            padding: 1rem;
-            margin-bottom: 1rem;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
             cursor: pointer;
-            transition: all 0.3s;
         }
         
         .lernset-card:hover {
-            border-color: var(--primary-color);
-            transform: translateY(-2px);
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
         }
         
-        .lernset-card.active {
-            border-color: var(--primary-color);
-            background-color: rgba(66, 85, 255, 0.1);
+        .lernset-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
         }
         
-        .lernset-type-badge {
+        .lernset-title {
+            font-size: 1.3rem;
+            font-weight: 600;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .lernset-badge {
+            padding: 0.3rem 0.8rem;
+            border-radius: 15px;
             font-size: 0.8rem;
-            padding: 0.25rem 0.5rem;
+            font-weight: 600;
+            color: white;
         }
         
-        .selected-lernset-info {
-            background-color: rgba(66, 85, 255, 0.1);
-            border: 1px solid rgba(66, 85, 255, 0.2);
-            border-radius: 8px;
-            padding: 1rem;
+        .lernset-badge.standard {
+            background-color: var(--primary-color);
+        }
+        
+        .lernset-badge.custom {
+            background-color: var(--secondary-color);
+        }
+        
+        .lernset-description {
+            color: #666;
             margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+        
+        .lernset-stats {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .lernset-vocab-count {
+            color: #888;
+            font-size: 0.9rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .lernset-date {
+            color: #aaa;
+            font-size: 0.8rem;
+        }
+        
+        .lernset-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 0.5rem;
+        }
+        
+        .action-btn {
+            padding: 0.6rem;
+            border-radius: 8px;
+            text-decoration: none;
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .action-btn.primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .action-btn.primary:hover {
+            background-color: #3346e6;
+            color: white;
+        }
+        
+        .action-btn.secondary {
+            background-color: var(--info-color);
+            color: white;
+        }
+        
+        .action-btn.secondary:hover {
+            background-color: #138496;
+            color: white;
+        }
+        
+        .action-btn.warning {
+            background-color: var(--warning-color);
+            color: #856404;
+        }
+        
+        .action-btn.warning:hover {
+            background-color: #e0a800;
+            color: #856404;
+        }
+        
+        .action-btn.edit {
+            background-color: var(--secondary-color);
+            color: white;
+        }
+        
+        .action-btn.edit:hover {
+            background-color: #e67e00;
+            color: white;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: #666;
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.5;
+        }
+        
+        .empty-state h3 {
+            margin-bottom: 1rem;
+        }
+        
+        .empty-state p {
+            margin-bottom: 2rem;
+        }
+        
+        .alert {
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .alert-success {
+            background-color: #d4edda;
+            border-color: var(--success-color);
+            color: var(--success-color);
+        }
+        
+        @media (max-width: 768px) {
+            .page-header h1 {
+                font-size: 2rem;
+            }
+            
+            .search-section {
+                margin: -1rem 1rem 2rem;
+                padding: 1.5rem;
+            }
+            
+            .search-form {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .filter-tabs {
+                flex-wrap: wrap;
+                gap: 0.5rem;
+            }
+            
+            .lernsets-grid {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
+                padding: 1rem;
+            }
+            
+            .lernset-actions {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+            
+            .create-button {
+                bottom: 1rem;
+                right: 1rem;
+                width: 50px;
+                height: 50px;
+                font-size: 1.2rem;
+            }
         }
     </style>
 </head>
@@ -236,9 +480,14 @@ foreach ($lernsets as $lernset) {
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
-                <form class="d-flex mx-auto mb-2 mb-lg-0">
-                    <input class="form-control me-2" type="search" placeholder="Nach Vokabeln suchen" style="width: 250px; border-radius: 20px;">
-                </form>
+                <ul class="navbar-nav me-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="main.php">Dashboard</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link active" href="Voc.php">Bibliothek</a>
+                    </li>
+                </ul>
                 <div class="ms-auto">
                     <div class="dropdown">
                         <div class="user-avatar dropdown-toggle" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
@@ -256,161 +505,162 @@ foreach ($lernsets as $lernset) {
         </div>
     </nav>
 
-    <!-- Library Header -->
-    <div class="library-header">
-        <h1>Easy Vokabeln</h1>
-        <p class="mt-2">Wähle dein Lernset und deine bevorzugte Lernmethode</p>
+    <!-- Page Header -->
+    <div class="page-header">
+        <div class="container">
+            <h1><i class="fas fa-book me-3"></i>Lernset-Bibliothek</h1>
+            <div class="subtitle">Entdecke und verwalte deine Lernsets</div>
+        </div>
     </div>
 
-    <!-- Library Content -->
-    <div class="library-content">
-        <?php if (empty($lernsets)): ?>
-            <div class="text-center py-5">
-                <i class="fas fa-book-open fa-3x text-muted mb-3"></i>
-                <h3>Keine Lernsets gefunden</h3>
-                <p class="text-muted">Es wurden keine aktiven Lernsets gefunden.</p>
-            </div>
-        <?php else: ?>
-            <!-- Lernset Auswahl -->
-            <div class="lernset-selector">
-                <h5 class="mb-3"><i class="fas fa-book me-2"></i>Lernset auswählen</h5>
-                <div class="row">
-                    <?php foreach ($lernsets as $lernset): ?>
-                        <div class="col-md-6 col-lg-4">
-                            <div class="lernset-card <?php echo ($lernset['id'] == $selected_lernset) ? 'active' : ''; ?>" 
-                                 onclick="selectLernset(<?php echo $lernset['id']; ?>)">
-                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                    <h6 class="mb-1"><?php echo htmlspecialchars($lernset['name']); ?></h6>
-                                    <span class="badge <?php echo ($lernset['type'] == 'standard') ? 'bg-primary' : 'bg-secondary'; ?> lernset-type-badge">
-                                        <?php echo ucfirst($lernset['type']); ?>
-                                    </span>
-                                </div>
-                                <?php if (!empty($lernset['description'])): ?>
-                                    <p class="text-muted small mb-2"><?php echo htmlspecialchars($lernset['description']); ?></p>
-                                <?php endif; ?>
-                                <small class="text-muted">
-                                    <i class="fas fa-book-open me-1"></i><?php echo $lernset['vocab_count']; ?> Vokabeln
-                                </small>
-                            </div>
-                        </div>
-                    <?php endforeach; ?>
-                </div>
-            </div>
-
-            <?php if ($selected_lernset_info): ?>
-                <!-- Ausgewähltes Lernset Info -->
-                <div class="selected-lernset-info">
-                    <h6><i class="fas fa-check-circle me-2"></i>Ausgewähltes Lernset: <?php echo htmlspecialchars($selected_lernset_info['name']); ?></h6>
-                    <p class="mb-0 small text-muted">
-                        <?php echo $selected_lernset_info['vocab_count']; ?> Vokabeln verfügbar
-                        <?php if (!empty($selected_lernset_info['description'])): ?>
-                            - <?php echo htmlspecialchars($selected_lernset_info['description']); ?>
-                        <?php endif; ?>
-                    </p>
-                </div>
-
-                <!-- Lernmethoden -->
-                <h4 class="mb-4 text-center">Wie möchtest du lernen?</h4>
-                
-                <div class="learning-options">
-                    <div class="option-card" onclick="startLearning('karten')">
-                        <div class="option-icon">
-                            <i class="fas fa-clone"></i>
-                        </div>
-                        <h3>Karteikarten</h3>
-                        <p>Lerne mit digitalen Karteikarten. Dreh die Karte um, um die Antwort zu sehen.</p>
-                        <button class="btn btn-primary">Karteikarten starten</button>
-                    </div>
-                    
-                    <div class="option-card" onclick="startLearning('schreiben')">
-                        <div class="option-icon">
-                            <i class="fas fa-pencil-alt"></i>
-                        </div>
-                        <h3>Schreiben</h3>
-                        <p>Lerne durch aktives Schreiben der Vokabeln für ein besseres Gedächtnis.</p>
-                        <button class="btn btn-primary">Schreibübung starten</button>
-                    </div>
-
-                    <div class="option-card" onclick="startLearning('test')">
-                        <div class="option-icon">
-                            <i class="fas fa-check-circle"></i>
-                        </div>
-                        <h3>Teste dein Wissen</h3>
-                        <p>Überprüfe deine Vokabelkenntnisse mit einem Test und sieh deine Fortschritte.</p>
-                        <button class="btn btn-primary">Test starten</button>
-                    </div>
-                </div>
-            <?php else: ?>
-                <div class="text-center py-4">
-                    <p class="text-muted">Bitte wähle ein Lernset aus, um zu beginnen.</p>
+    <div class="container">
+        <!-- Search Section -->
+        <div class="search-section">
+            <?php if (!empty($message)): ?>
+                <div class="alert alert-success">
+                    <i class="fas fa-check-circle me-2"></i>
+                    <?php echo $message; ?>
                 </div>
             <?php endif; ?>
+            
+            <form method="GET" action="Voc.php" class="search-form">
+                <input type="hidden" name="filter" value="<?php echo htmlspecialchars($filter); ?>">
+                <div class="search-input">
+                    <label for="search" class="form-label">Lernsets durchsuchen</label>
+                    <input type="text" class="form-control" id="search" name="search" 
+                           value="<?php echo htmlspecialchars($search); ?>" 
+                           placeholder="Nach Name oder Beschreibung suchen...">
+                </div>
+                <button type="submit" class="btn btn-primary-custom">
+                    <i class="fas fa-search me-2"></i>Suchen
+                </button>
+                <?php if (!empty($search)): ?>
+                    <a href="Voc.php?filter=<?php echo htmlspecialchars($filter); ?>" class="btn btn-outline-secondary">
+                        <i class="fas fa-times"></i>
+                    </a>
+                <?php endif; ?>
+            </form>
+        </div>
+
+        <!-- Filter Tabs -->
+        <div class="filter-tabs">
+            <a href="Voc.php?search=<?php echo urlencode($search); ?>&filter=all" 
+               class="filter-tab <?php echo $filter === 'all' ? 'active' : ''; ?>">
+                <i class="fas fa-th-large me-1"></i>Alle Lernsets
+            </a>
+            <a href="Voc.php?search=<?php echo urlencode($search); ?>&filter=standard" 
+               class="filter-tab <?php echo $filter === 'standard' ? 'active' : ''; ?>">
+                <i class="fas fa-star me-1"></i>Standard
+            </a>
+            <a href="Voc.php?search=<?php echo urlencode($search); ?>&filter=custom" 
+               class="filter-tab <?php echo $filter === 'custom' ? 'active' : ''; ?>">
+                <i class="fas fa-user-edit me-1"></i>Meine Lernsets
+            </a>
+        </div>
+
+        <!-- Lernsets Grid -->
+        <?php if (empty($lernsets)): ?>
+            <div class="empty-state">
+                <i class="fas fa-search"></i>
+                <h3>Keine Lernsets gefunden</h3>
+                <?php if (!empty($search)): ?>
+                    <p>Keine Lernsets entsprechen deiner Suche nach "<?php echo htmlspecialchars($search); ?>".</p>
+                    <a href="Voc.php?filter=<?php echo htmlspecialchars($filter); ?>" class="btn btn-primary-custom">
+                        <i class="fas fa-times me-2"></i>Suche zurücksetzen
+                    </a>
+                <?php elseif ($filter === 'custom'): ?>
+                    <p>Du hast noch keine eigenen Lernsets erstellt.</p>
+                    <a href="create_set.php" class="btn btn-primary-custom">
+                        <i class="fas fa-plus me-2"></i>Erstes Lernset erstellen
+                    </a>
+                <?php else: ?>
+                    <p>Keine Lernsets verfügbar.</p>
+                <?php endif; ?>
+            </div>
+        <?php else: ?>
+            <div class="lernsets-grid">
+                <?php foreach ($lernsets as $lernset): ?>
+                    <div class="lernset-card" onclick="window.location='lernset.php?id=<?php echo $lernset['id']; ?>'">
+                        <div class="lernset-header">
+                            <div>
+                                <div class="lernset-title"><?php echo htmlspecialchars($lernset['name']); ?></div>
+                                <span class="lernset-badge <?php echo $lernset['type']; ?>">
+                                    <?php echo $lernset['type'] === 'custom' ? 'Eigenes Set' : 'Standard'; ?>
+                                </span>
+                            </div>
+                        </div>
+                        
+                        <div class="lernset-description">
+                            <?php echo htmlspecialchars($lernset['description'] ?: 'Keine Beschreibung verfügbar'); ?>
+                        </div>
+                        
+                        <div class="lernset-stats">
+                            <div class="lernset-vocab-count">
+                                <i class="fas fa-list-ol"></i>
+                                <?php echo $lernset['vocab_count']; ?> Vokabeln
+                            </div>
+                            <div class="lernset-date">
+                                <?php echo date('d.m.Y', strtotime($lernset['created_at'])); ?>
+                            </div>
+                        </div>
+                        
+                        <div class="lernset-actions">
+                            <a href="karteikarten.php?id=<?php echo $lernset['id']; ?>" 
+                               class="action-btn primary" 
+                               onclick="event.stopPropagation();"
+                               title="Karteikarten lernen">
+                                <i class="fas fa-clone me-1"></i>Karten
+                            </a>
+                            <a href="schreiben.php?id=<?php echo $lernset['id']; ?>" 
+                               class="action-btn secondary" 
+                               onclick="event.stopPropagation();"
+                               title="Schreibübung">
+                                <i class="fas fa-keyboard me-1"></i>Schreiben
+                            </a>
+                            <a href="test.php?id=<?php echo $lernset['id']; ?>" 
+                               class="action-btn warning" 
+                               onclick="event.stopPropagation();"
+                               title="Test machen">
+                                <i class="fas fa-check me-1"></i>Test
+                            </a>
+                            <?php if ($lernset['type'] === 'custom' && $lernset['user_id'] == $user_id): ?>
+                                <a href="edit_set.php?id=<?php echo $lernset['id']; ?>" 
+                                   class="action-btn edit" 
+                                   onclick="event.stopPropagation();"
+                                   title="Lernset bearbeiten">
+                                    <i class="fas fa-edit me-1"></i>Bearbeiten
+                                </a>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+            </div>
         <?php endif; ?>
     </div>
 
-    <!-- Footer -->
-    <footer class="bg-light py-4 mt-5">
-        <div class="container">
-            <div class="row">
-                <div class="col-md-6">
-                    <h5>SprachMeister</h5>
-                    <p>Lerne Sprachen einfach und effektiv mit unserem interaktiven Sprachentrainer.</p>
-                </div>
-                <div class="col-md-3">
-                    <h5>Links</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="#" class="text-decoration-none">Über uns</a></li>
-                        <li><a href="#" class="text-decoration-none">Hilfe & FAQ</a></li>
-                        <li><a href="#" class="text-decoration-none">Datenschutz</a></li>
-                    </ul>
-                </div>
-                <div class="col-md-3">
-                    <h5>Kontakt</h5>
-                    <ul class="list-unstyled">
-                        <li><a href="#" class="text-decoration-none">Kontaktformular</a></li>
-                        <li><a href="#" class="text-decoration-none">Support</a></li>
-                    </ul>
-                </div>
-            </div>
-            <div class="text-center mt-4">
-                <p>&copy; 2025 SprachMeister. Alle Rechte vorbehalten.</p>
-            </div>
-        </div>
-    </footer>
+    <!-- Create Button -->
+    <a href="create_set.php" class="create-button" title="Neues Lernset erstellen">
+        <i class="fas fa-plus"></i>
+    </a>
 
-    <!-- Bootstrap and JavaScript -->
+    <!-- Bootstrap JavaScript -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     
     <script>
-        function selectLernset(lernsetId) {
-            // URL Parameter setzen und Seite neu laden
-            window.location.href = '?lernset=' + lernsetId;
-        }
+        // Search on Enter key
+        document.getElementById('search').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                this.closest('form').submit();
+            }
+        });
         
-        function startLearning(method) {
-            <?php if ($selected_lernset): ?>
-                const lernsetId = <?php echo $selected_lernset; ?>;
-                let url = '';
-                
-                switch(method) {
-                    case 'karten':
-                        url = 'easyVocKarten.php?lernset=' + lernsetId;
-                        break;
-                    case 'schreiben':
-                        url = 'easyVocSchreiben.php?lernset=' + lernsetId;
-                        break;
-                    case 'test':
-                        url = 'easyVocTest.php?lernset=' + lernsetId;
-                        break;
-                }
-                
-                if (url) {
-                    window.location.href = url;
-                }
-            <?php else: ?>
-                alert('Bitte wähle zuerst ein Lernset aus.');
-            <?php endif; ?>
-        }
+        // Clear search when X is clicked
+        document.querySelectorAll('.btn-outline-secondary').forEach(function(btn) {
+            btn.addEventListener('click', function(e) {
+                e.preventDefault();
+                window.location.href = this.href;
+            });
+        });
     </script>
 </body>
 </html>
